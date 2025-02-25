@@ -11,7 +11,12 @@ from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 
-from speech.models import Meeting, MeetingTranscription
+from speech.models import Meeting, MeetingTranscription, CustomUser
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import UserSerializer
 
 load_dotenv()
 
@@ -191,3 +196,12 @@ def ask_question(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+class UserCreateView(APIView):
+    def post(self, request):
+        serializer =UserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "User created successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
