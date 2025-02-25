@@ -1,7 +1,0 @@
-+--------------------------------+-------------+
-| Sentence                       | Action Item |
-+--------------------------------+-------------+
-| Send an email to the client    |      ✅     |
-| Meeting scheduled for tomorrow |      ✅     |
-| Just a normal discussion       |      ❌     |
-+--------------------------------+-------------+
