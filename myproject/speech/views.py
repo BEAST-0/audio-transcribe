@@ -75,7 +75,7 @@ def create_transcript(output_json, output_transcript, meetingId):
       for line in lines:
         f.write(line)
         f.write('\n')
-  return
+  return lines
 
 DIRECTORY = '.'
 
@@ -85,8 +85,9 @@ def print_transcript(meetingId):
         if filename.endswith('.json'):
             json_path = os.path.join(DIRECTORY, filename)
             output_transcript = os.path.join("transcriptions", os.path.splitext(filename)[0] + '.txt')
-            create_transcript(json_path, output_transcript, meetingId)  # Process the file
+            transcription_text = create_transcript(json_path, output_transcript, meetingId)  # Process the file
             os.remove(json_path)
+            return transcription_text
 
 @csrf_exempt
 def upload_audio(request):
@@ -138,11 +139,11 @@ def upload_audio(request):
 
         meeting = Meeting.objects.create(userid=1, title="Project started")
         
-        print_transcript(meeting.id)
+        processed_transcript = print_transcript(meeting.id)
 
         return JsonResponse({
             "message": "Transcription saved and task created successfully",
-            "trello_response": trello_response
+            "transcription_text": processed_transcript
         })
 
     except requests.exceptions.RequestException as e:
