@@ -7,7 +7,7 @@ urlpatterns = [
     path('api/create-task/', create_trello_task, name='create_task'), 
     path('ask-gpt/', ask_question, name='ask_question'),
     path("users/", UserCreateView.as_view(), name="user-create"),  # Keep it simple
-    path("testing", checking, name="checking"),  # Keep it simple
+    path("testing/", checking, name="checking"),  # Keep it simple
 ]
 
 
