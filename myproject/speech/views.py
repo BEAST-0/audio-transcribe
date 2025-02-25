@@ -5,18 +5,16 @@ import requests
 import os
 import json
 from deepgram import Deepgram
-from django.http import HttpResponse
 from django.views.decorators.http import require_POST
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-
-from speech.models import Meeting, MeetingTranscription, CustomUser
-
+from speech.models import Meeting, MeetingTranscription
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import UserSerializer
+import re
 
 load_dotenv()
 
@@ -68,14 +66,19 @@ def create_transcript(output_json, output_transcript, meetingId):
         full_line = tag + curr_line + '\n'
         curr_speaker = word_speaker
         lines.append(full_line)
-        MeetingTranscription.objects.create(speaker=word_speaker,meeting=Meeting.objects.get(id=meetingId), text=curr_line)
+        curr_speaker = word_speaker
         curr_line = ' ' + word
     lines.append(TAG + str(curr_speaker) + ':' + curr_line)
     with open(output_transcript, 'w') as f:
-      for line in lines:
-        f.write(line)
-        f.write('\n')
-  return lines
+        for line in lines:
+            match = re.match(r"SPEAKER (\d+):\s(.+)", line)
+            if match:
+                speaker_number = int(match.group(1))
+                text = match.group(2)
+            MeetingTranscription.objects.create(speaker=speaker_number,meeting=Meeting.objects.get(id=meetingId), text=text)
+            f.write(line)
+            f.write('\n')
+  return
 
 DIRECTORY = '.'
 
@@ -91,7 +94,6 @@ def print_transcript(meetingId):
 
 @csrf_exempt
 def upload_audio(request):
-    print("fafdsafdas",DEEPGRAM_API_KEY)
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method"}, status=405)
 
