@@ -151,48 +151,93 @@ def upload_audio(request):
     except Exception as e:
         return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
+
 @csrf_exempt
 @require_POST
 def ask_question(request):
     try:
-        data = json.loads(request.body)
-        question = data.get('question')
-
-        if not question:
-            return JsonResponse({"error": "Please provide a 'question' in the JSON body."}, status=400)
+        transcript = """John: Good morning, everyone. Let's start with the project update. Sarah, can you share the status?  
+        Sarah: Sure! We completed the initial UI design, and the dev team will start implementation on March 5th.  
+        Mark: That's great. Also, we need the API documentation finalized by March 8th. Who's taking that?  
+        David: I can handle the API documentation.  
+        John: Perfect. Also, don't forget we have the client presentation on March 10th at 3 PM.  
+        Lisa: I'll prepare the presentation slides by March 9th.  
+        John: Sounds good. Let's also schedule the next team sync on March 12th at 10 AM.  
+        Mark: Noted. Also, Sarah, can you send the updated UI mockups to the team by March 6th?  
+        Sarah: Yes, I'll do that.  
+        John: Great. That's all for today. Thanks, everyone!"""
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
 
         if not openai_api_key:
-            print("Error: OpenAI API key not found in environment variables.")
             return JsonResponse({"error": "OpenAI API key not configured."}, status=500)
 
+        llm = ChatOpenAI(
+            openai_api_key=openai_api_key,
+            model="gpt-4o-mini",  # Use GPT-4o instead of "gpt-4o-mini" if needed
+            temperature=0.7,
+            response_format={"type": "json_object"}  # ✅ Use "json_object" instead of "json"
+        )
+
+        prompt_template = PromptTemplate(
+            input_variables=["transcript"],
+            template="""
+            You are an AI assistant that processes meeting transcriptions. 
+            Analyze the following transcript and extract the following details:
+
+            - **Meeting Notes**: Summarize key discussion points concisely.
+            - **Schedules**: Identify any dates, times, or deadlines mentioned.
+            - **Action Items**: List tasks assigned to specific individuals, including deadlines.
+
+            Format your response in **valid JSON**:
+
+            {{
+                "notes": [
+                    {{
+                        "topic": "Description of key discussion point"
+                    }}
+                ],
+                "schedules": [
+                    {{
+                        "date": "YYYY-MM-DD",
+                        "time": "HH:MM AM/PM",
+                        "event": "Description of scheduled event"
+                    }}
+                ],
+                "action_items": [
+                    {{
+                        "task": "Description of action item",
+                        "assigned_to": "Person's name",
+                        "deadline": "YYYY-MM-DD"
+                    }}
+                ],
+                "trello_tasks": [
+                    {{
+                        "task": "Description of action item",
+                        "assigned_to": "Person's name",
+                        "deadline": "YYYY-MM-DD",
+                        "trello_list": "To Do"
+                    }}
+                ]
+            }}
+
+            **Transcript:**
+            {transcript}
+            """
+        )
+
+        chain = LLMChain(llm=llm, prompt=prompt_template)
+        answer = chain.run(transcript=transcript)  # Ensure correct variable mapping
+
+        print(f"Raw Answer: {answer}")
+
+        # Ensure the response is valid JSON
         try:
-            llm = ChatOpenAI(
-                openai_api_key=openai_api_key,
-                model="gpt-4o-mini",  # Update model name
-                temperature=0.7
-            )
+            json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format in AI response.", "raw_output": answer}, status=500)
 
-            prompt_template = PromptTemplate(
-                input_variables=["question"],
-                template="Answer the following question: {question}"
-            )
-
-            chain = LLMChain(llm=llm, prompt=prompt_template)
-            answer = chain.run(question=question)
-
-            print(f"Question: {question}")
-            print(f"Answer: {answer}")
-
-            return JsonResponse({"answer": answer})
-
-        except Exception as e:
-            print(f"Error during Langchain processing: {e}")
-            return JsonResponse({"error": str(e)}, status=500)
-
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON in request body."}, status=400)
+        return JsonResponse({"answer": json_answer})
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
