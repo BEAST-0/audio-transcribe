@@ -6,6 +6,8 @@ import os
 import json
 from deepgram import Deepgram
 
+from speech.models import Meeting, MeetingTranscription
+
 load_dotenv()
 
 #Deepgram API Key
@@ -39,7 +41,7 @@ def create_trello_task(task_name, task_description):
 
 TAG = 'SPEAKER '
 
-def create_transcript(output_json, output_transcript):
+def create_transcript(output_json, output_transcript, meetingId):
   lines = []
   with open(output_json, "r") as file:
     words = json.load(file)["results"]["channels"][0]["alternatives"][0]["words"]
@@ -55,6 +57,7 @@ def create_transcript(output_json, output_transcript):
         full_line = tag + curr_line + '\n'
         curr_speaker = word_speaker
         lines.append(full_line)
+        MeetingTranscription.objects.create(speaker=word_speaker,meeting=Meeting.objects.get(id=meetingId), text=curr_line)
         curr_line = ' ' + word
     lines.append(TAG + str(curr_speaker) + ':' + curr_line)
     with open(output_transcript, 'w') as f:
@@ -65,13 +68,13 @@ def create_transcript(output_json, output_transcript):
 
 DIRECTORY = '.'
 
-def print_transcript():
+def print_transcript(meetingId):
     os.makedirs("transcriptions", exist_ok=True)
     for filename in os.listdir(DIRECTORY):
         if filename.endswith('.json'):
             json_path = os.path.join(DIRECTORY, filename)
             output_transcript = os.path.join("transcriptions", os.path.splitext(filename)[0] + '.txt')
-            create_transcript(json_path, output_transcript)  # Process the file
+            create_transcript(json_path, output_transcript, meetingId)  # Process the file
             os.remove(json_path)
 
 @csrf_exempt
@@ -96,6 +99,7 @@ def upload_audio(request):
                 f.write(chunk)
     except Exception as e:
         return JsonResponse({"error": f"File saving failed: {str(e)}"}, status=500)
+    
 
     dg = Deepgram(DEEPGRAM_API_KEY)
     MIMETYPE = 'mp3'
@@ -120,7 +124,9 @@ def upload_audio(request):
         task_name = f"Transcription: {audio_file.name}"
         trello_response = create_trello_task(task_name, transcription_text)
 
-        print_transcript()
+        meeting = Meeting.objects.create(userid=1, title="Project started")
+        
+        print_transcript(meeting.id)
 
         return JsonResponse({
             "message": "Transcription saved and task created successfully",
