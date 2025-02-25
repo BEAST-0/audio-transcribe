@@ -78,7 +78,7 @@ def create_transcript(output_json, output_transcript, meetingId):
             MeetingTranscription.objects.create(speaker=speaker_number,meeting=Meeting.objects.get(id=meetingId), text=text)
             f.write(line)
             f.write('\n')
-  return
+  return lines
 
 DIRECTORY = '.'
 
