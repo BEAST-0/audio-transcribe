@@ -234,6 +234,18 @@ def ask_question(request):
         # Ensure the response is valid JSON
         try:
             json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
+            notes = json_answer.get("notes", [])
+            schedules = json_answer.get("schedules", [])
+            action_items = json_answer.get("action_items", [])
+            trello_tasks = json_answer.get("trello_tasks", [])
+
+            print(f"trello_tasks: {trello_tasks[0]}")
+            # iterate over the trello tasks and create them
+            for task in trello_tasks:
+                task_name = task.get("task", "No task name")
+                task_description = task.get("assigned_to", "No assignee") + " - " + task.get("deadline", "No deadline")
+                trello_response = create_trello_task(task_name, task_description)
+
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON format in AI response.", "raw_output": answer}, status=500)
 
