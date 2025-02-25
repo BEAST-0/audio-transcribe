@@ -262,3 +262,5 @@ class UserCreateView(APIView):
             return Response({"message": "User created successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+def checking(request):
+    return HttpResponse("Hello, World!")
