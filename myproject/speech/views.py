@@ -269,6 +269,9 @@ class UserCreateView(APIView):
 def checking(request):
     return JsonResponse({"message": "Hello1, World!"})
 
+def socket_checking(message):
+    return {"message": "From views.socket_checkin" + message}
+
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
     transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id")
