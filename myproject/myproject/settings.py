@@ -83,7 +83,7 @@ CORS_ALLOW_METHODS = ["*"]
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASE=os.environ.get('DATABASE')
-USER=os.environ.get('USER')
+USER=os.environ.get('DBUSER')
 PASSWORD=os.environ.get('PASSWORD')
 HOST=os.environ.get('HOST')
 PORT=os.environ.get('PORT')
