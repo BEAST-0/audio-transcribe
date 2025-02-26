@@ -51,34 +51,31 @@ def create_trello_task(task_name, task_description):
 TAG = 'SPEAKER '
 
 def create_transcript(output_json, output_transcript,room_id):
-  lines = []
-  with open(output_json, "r") as file:
-    words = json.load(file)["results"]["channels"][0]["alternatives"][0]["words"]
-    curr_speaker = 0
-    curr_line = ''
-    for word_struct in words:
-      word_speaker = word_struct["speaker"]
-      word = word_struct["punctuated_word"]
-      if word_speaker == curr_speaker:
-        curr_line += ' ' + word
-      else:
-        tag = TAG + str(curr_speaker) + ':'
-        full_line = tag + curr_line + '\n'
-        curr_speaker = word_speaker
-        lines.append(full_line)
-        curr_speaker = word_speaker
-        curr_line = ' ' + word
-    lines.append(TAG + str(curr_speaker) + ':' + curr_line)
-    with open(output_transcript, 'w') as f:
+    lines = []
+    with open(output_json, "r") as file:
+        words = json.load(file)["results"]["channels"][0]["alternatives"][0]["words"]
+        curr_speaker = 0
+        curr_line = ''
+        for word_struct in words:
+            word_speaker = word_struct["speaker"]
+            word = word_struct["punctuated_word"]
+            if word_speaker == curr_speaker:
+                curr_line += ' ' + word
+            else:
+                tag = TAG + str(curr_speaker) + ':'
+                full_line = tag + curr_line + '\n'
+                curr_speaker = word_speaker
+                lines.append(full_line)
+                curr_speaker = word_speaker
+                curr_line = ' ' + word
+        lines.append(TAG + str(curr_speaker) + ':' + curr_line)
         for line in lines:
             match = re.match(r"SPEAKER (\d+):\s(.+)", line)
             if match:
                 speaker_number = int(match.group(1))
                 text = match.group(2)
             MeetingTranscription.objects.create(speaker=speaker_number,roomid=room_id, text=text)
-            f.write(line)
-            f.write('\n')
-  return lines
+    return lines
 
 DIRECTORY = '.'
 
@@ -103,9 +100,6 @@ def upload_audio(request):
     room_id = request.POST.get('room_id')
     if not room_id:
         return JsonResponse({"error": "No meeting id provided."}, status=400)
-    
-    if MeetingTranscription.objects.filter(roomid=room_id).exists():
-        return JsonResponse({"error": f"Transcription already exists for room ID: {room_id}"}, status=400)
     
     audio_file = request.FILES["file"]
 
