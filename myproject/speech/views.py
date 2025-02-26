@@ -3,7 +3,6 @@ import os
 import json
 import requests
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 from deepgram import Deepgram
@@ -11,7 +10,7 @@ from django.views.decorators.http import require_POST
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-from speech.models import Meeting, MeetingTranscription
+from speech.models import MeetingTranscription
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -21,12 +20,12 @@ from rest_framework.decorators import api_view
 load_dotenv()
 
 #Deepgram API Key
-DEEPGRAM_API_KEY = os.environ.get('DEEPGRAM_API_KEY')
+DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
 
 #Trello API Credentials
-TRELLO_API_KEY = os.environ.get('TRELLO_API_KEY')
-TRELLO_TOKEN = os.environ.get('TRELLO_TOKEN')
-TRELLO_LIST_ID = os.environ.get('TRELLO_LIST_ID')
+TRELLO_API_KEY = os.getenv('TRELLO_API_KEY')
+TRELLO_TOKEN = os.getenv('TRELLO_TOKEN')
+TRELLO_LIST_ID = os.getenv('TRELLO_LIST_ID')
 
 def create_trello_task(task_name, task_description):
     """Function to create a new task in Trello."""
@@ -278,6 +277,6 @@ def checking(request):
 
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
-    transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("id","speaker","text","roomid")
+    transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id")
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)

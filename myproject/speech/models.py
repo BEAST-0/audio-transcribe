@@ -16,10 +16,10 @@ class MeetingTranscription(models.Model):
     id = models.AutoField(primary_key=True)
     speaker = models.CharField(max_length=255)
     text = models.TextField()
-    roomid = models.IntegerField()
+    roomid = models.CharField(max_length=255)
 
     def __str__(self):
-        return f"{self.speaker} - {self.meeting.title}"
+        return str(self.id)
 
 class CustomUser(models.Model):  
     id = models.AutoField(primary_key=True)
