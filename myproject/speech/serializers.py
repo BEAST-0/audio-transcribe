@@ -8,4 +8,4 @@ class UserSerializer(serializers.ModelSerializer):
 class MeetingTranscriptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = MeetingTranscription
-        fields = ["id", "speaker", "text","meeting_id"] 
+        fields = ["id", "speaker", "text","roomid"] 

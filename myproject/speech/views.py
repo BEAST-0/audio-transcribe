@@ -1,10 +1,11 @@
+import re
+import os
+import json
+import requests
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
-import requests
-import os
-import json
 from deepgram import Deepgram
 from django.views.decorators.http import require_POST
 from langchain.chat_models import ChatOpenAI
@@ -15,10 +16,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import MeetingTranscriptionSerializer, UserSerializer
-import re
 from rest_framework.decorators import api_view
-
-
 
 load_dotenv()
 
@@ -29,7 +27,6 @@ DEEPGRAM_API_KEY = os.environ.get('DEEPGRAM_API_KEY')
 TRELLO_API_KEY = os.environ.get('TRELLO_API_KEY')
 TRELLO_TOKEN = os.environ.get('TRELLO_TOKEN')
 TRELLO_LIST_ID = os.environ.get('TRELLO_LIST_ID')
-OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 
 def create_trello_task(task_name, task_description):
     """Function to create a new task in Trello."""
@@ -54,7 +51,7 @@ def create_trello_task(task_name, task_description):
 
 TAG = 'SPEAKER '
 
-def create_transcript(output_json, output_transcript, meetingId):
+def create_transcript(output_json, output_transcript,room_id):
   lines = []
   with open(output_json, "r") as file:
     words = json.load(file)["results"]["channels"][0]["alternatives"][0]["words"]
@@ -79,20 +76,20 @@ def create_transcript(output_json, output_transcript, meetingId):
             if match:
                 speaker_number = int(match.group(1))
                 text = match.group(2)
-            MeetingTranscription.objects.create(speaker=speaker_number,meeting=Meeting.objects.get(id=meetingId), text=text)
+            MeetingTranscription.objects.create(speaker=speaker_number,roomid=room_id, text=text)
             f.write(line)
             f.write('\n')
   return lines
 
 DIRECTORY = '.'
 
-def print_transcript(meetingId):
+def print_transcript(room_id):
     os.makedirs("transcriptions", exist_ok=True)
     for filename in os.listdir(DIRECTORY):
         if filename.endswith('.json'):
             json_path = os.path.join(DIRECTORY, filename)
             output_transcript = os.path.join("transcriptions", os.path.splitext(filename)[0] + '.txt')
-            transcription_text = create_transcript(json_path, output_transcript, meetingId)  # Process the file
+            transcription_text = create_transcript(json_path, output_transcript, room_id)  # Process the file
             os.remove(json_path)
             return transcription_text
 
@@ -104,6 +101,13 @@ def upload_audio(request):
     if "file" not in request.FILES:
         return JsonResponse({"error": "No file uploaded"}, status=400)
 
+    room_id = request.POST.get('room_id')
+    if not room_id:
+        return JsonResponse({"error": "No meeting id provided."}, status=400)
+    
+    if MeetingTranscription.objects.filter(roomid=room_id).exists():
+        return JsonResponse({"error": f"Transcription already exists for room ID: {room_id}"}, status=400)
+    
     audio_file = request.FILES["file"]
 
     #Ensure 'uploads/' folder exists
@@ -142,15 +146,11 @@ def upload_audio(request):
         #Create Trello Task with transcription details
         task_name = f"Transcription: {audio_file.name}"
         trello_response = create_trello_task(task_name, transcription_text)
-
-        meeting = Meeting.objects.create(userid=1, title="Project started")
-        meetingId = meeting.id
         
-        processed_transcript = print_transcript(meetingId)
+        processed_transcript = print_transcript(room_id)
 
         return JsonResponse({
             "message": "Transcription saved and task created successfully",
-            "meeting_id": meetingId,
             "transcription_text": processed_transcript,
         })
 
@@ -277,8 +277,7 @@ def checking(request):
     return JsonResponse({"message": "Hello, World!"})
 
 @api_view(['GET'])
-def get_meeting_transcriptions(request, meeting_id):
-    meeting = get_object_or_404(Meeting, id=meeting_id)
-    transcriptions = MeetingTranscription.objects.filter(meeting=meeting).order_by("id").values("id","speaker","text","meeting_id")
+def get_meeting_transcriptions(request, room_id):
+    transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("id","speaker","text","roomid")
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)

@@ -8,7 +8,7 @@ urlpatterns = [
     path('ask-gpt/', ask_question, name='ask_question'),
     path("users/", UserCreateView.as_view(), name="user-create"),  # Keep it simple
     path("testing/", checking, name="checking"),  # Keep it simple
-    path('transcripts/<int:meeting_id>/', get_meeting_transcriptions, name='get_meeting_transcripts'),
+    path('transcripts/<int:room_id>/', get_meeting_transcriptions, name='get_meeting_transcripts'),
 ]
 
 
