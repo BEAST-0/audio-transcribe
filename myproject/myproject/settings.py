@@ -78,9 +78,6 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins (for testing)
 CORS_ALLOW_HEADERS = ["*"]
 CORS_ALLOW_METHODS = ["*"]
-SECURE_SSL_REDIRECT = True
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
 
 
 # Database
