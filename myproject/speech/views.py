@@ -268,4 +268,4 @@ class UserCreateView(APIView):
 # get request
 @csrf_exempt
 def checking(request):
-    return HttpResponse("Hello, World!")
+    return JsonResponse({"message": "Hello, World!"})
