@@ -37,7 +37,7 @@ class SpeechConsumer(AsyncWebsocketConsumer):
                 result = await sync_to_async(socket_checking)(message)
 
                 # Example: Send a response
-                await self.send(text_data=json.dumps({"response": f"Processed: {'fsfsdf'}"}))
+                await self.send(text_data=json.dumps({"response": f"Processed: {result}"}))
 
             except json.JSONDecodeError:
                 print(f"Received invalid JSON: {text_data}")
