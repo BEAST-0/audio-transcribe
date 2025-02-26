@@ -274,7 +274,7 @@ class UserCreateView(APIView):
 # get request
 @csrf_exempt
 def checking(request):
-    return JsonResponse({"message": "Hello, World!"})
+    return JsonResponse({"message": "hai, World!"})
 
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
