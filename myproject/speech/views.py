@@ -1,4 +1,5 @@
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv
 import requests
@@ -13,8 +14,11 @@ from speech.models import Meeting, MeetingTranscription
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import UserSerializer
+from .serializers import MeetingTranscriptionSerializer, UserSerializer
 import re
+from rest_framework.decorators import api_view
+
+
 
 load_dotenv()
 
@@ -140,12 +144,14 @@ def upload_audio(request):
         trello_response = create_trello_task(task_name, transcription_text)
 
         meeting = Meeting.objects.create(userid=1, title="Project started")
+        meetingId = meeting.id
         
-        processed_transcript = print_transcript(meeting.id)
+        processed_transcript = print_transcript(meetingId)
 
         return JsonResponse({
             "message": "Transcription saved and task created successfully",
-            "transcription_text": processed_transcript
+            "meeting_id": meetingId,
+            "transcription_text": processed_transcript,
         })
 
     except requests.exceptions.RequestException as e:
@@ -269,3 +275,10 @@ class UserCreateView(APIView):
 @csrf_exempt
 def checking(request):
     return JsonResponse({"message": "Hello, World!"})
+
+@api_view(['GET'])
+def get_meeting_transcriptions(request, meeting_id):
+    meeting = get_object_or_404(Meeting, id=meeting_id)
+    transcriptions = MeetingTranscription.objects.filter(meeting=meeting).order_by("id").values("id","speaker","text","meeting_id")
+    serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
+    return Response(serializer.data)
