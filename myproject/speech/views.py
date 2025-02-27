@@ -27,11 +27,6 @@ from speech.models import MeetingTranscription
 from .serializers import MeetingTranscriptionSerializer, UserSerializer
 from livekit.api import AccessToken, VideoGrants
 
-  
-
-
-
-
 load_dotenv()
 
 #Deepgram API Key
@@ -73,6 +68,7 @@ def create_transcript(json_path, room_id,username):
     if not words:
         return []
     lines = []
+    bulk_objects = []
     curr_speaker, curr_line = words[0]["speaker"], ""
     for word_struct in words:
         word, word_speaker = word_struct["punctuated_word"], word_struct["speaker"]
@@ -81,8 +77,27 @@ def create_transcript(json_path, room_id,username):
         else:
             full_line = f"{TAG}{curr_speaker}: {curr_line.strip()}"
             lines.append(full_line)
-            MeetingTranscription.objects.create(speaker=curr_speaker, roomid=room_id, text=curr_line.strip(), username=username)
+            bulk_objects.append(
+                MeetingTranscription(
+                    speaker=curr_speaker, 
+                    roomid=room_id, 
+                    text=curr_line.strip(), 
+                    username=username
+                )
+            )    
             curr_speaker, curr_line = word_speaker, word
+    if curr_line:
+        full_line = f"{TAG}{curr_speaker}: {curr_line.strip()}"
+        lines.append(full_line)
+        bulk_objects.append(
+            MeetingTranscription(
+                speaker=curr_speaker, 
+                roomid=room_id, 
+                text=curr_line.strip(), 
+                username=username
+            )
+        )
+    MeetingTranscription.objects.bulk_create(bulk_objects)
     return lines
 
 TRANSCRIPTS_DIRECTORY = './uploads/transcripts'
@@ -92,8 +107,8 @@ def process_transcriptions(room_id,username, audiofilename):
     for filename in os.listdir(TRANSCRIPTS_DIRECTORY):
         if filename == (audiofilename[:-4] + ".json"):
             json_path = os.path.join(TRANSCRIPTS_DIRECTORY, filename)
-            transcription_text = create_transcript(json_path, room_id, username)
             audio_path = os.path.join(UPLOADS_DIRECTORY,audiofilename)
+            transcription_text = create_transcript(json_path, room_id, username)
             os.remove(json_path)
             os.remove(audio_path)
             return transcription_text
