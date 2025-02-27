@@ -79,6 +79,7 @@ CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins (for testing)
 CORS_ALLOW_HEADERS = ["*"]
 CORS_ALLOW_METHODS = ["*"]
 
+
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
