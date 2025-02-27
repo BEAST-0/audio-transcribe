@@ -24,18 +24,9 @@ class MeetingTranscription(models.Model):
 
 class CustomUser(models.Model):  
     id = models.AutoField(primary_key=True)
-    username = models.CharField(max_length=100)
+    username = models.CharField(max_length=30, unique=True)
     email = models.EmailField(unique=True)
-    code = models.CharField(max_length=10, unique=True)
-    password = models.CharField(
-        max_length=255,
-        validators=[
-            RegexValidator(
-                regex=r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$',
-                message="Password must be at least 8 characters long, contain at least one letter, one number, and one special character."
-            )
-        ]
-    )
+    token = models.CharField(max_length=10, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
