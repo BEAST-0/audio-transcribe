@@ -288,3 +288,35 @@ def get_meeting_transcriptions(request, room_id):
     transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id")
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)
+
+def process_audio(file_path):
+    """Process an audio file using Deepgram API."""
+    
+    dg = Deepgram(DEEPGRAM_API_KEY)
+    MIMETYPE = "mp3"
+    options = {
+        "punctuate": True,
+        "diarize": True,
+        "model": "general",
+        "tier": "nova"
+    }
+
+    # Send file to Deepgram API for transcription
+    try:
+        with open(file_path, "rb") as f:
+            source = {"buffer": f, "mimetype": f"audio/{MIMETYPE}"}
+            res = dg.transcription.sync_prerecorded(source, options)
+            
+            # Save transcription result as JSON
+            transcription_path = file_path.replace(".wav", ".json")
+            with open(transcription_path, "w") as transcript_file:
+                json.dump(res, transcript_file, indent=4)
+
+        # Extract transcription text
+        deepgram_result = res
+        transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
+
+        return transcription_text
+
+    except Exception as e:
+        return f"Transcription failed: {str(e)}"

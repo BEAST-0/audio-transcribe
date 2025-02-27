@@ -1,49 +1,64 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
-import asyncio
+import os
+from datetime import datetime
+
+UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 class SpeechConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
+        self.metadata = None  # Store metadata separately
 
     async def disconnect(self, close_code):
         pass
 
     async def receive(self, bytes_data=None, text_data=None):
-        print("Received data", bytes_data, text_data)
+        if text_data:
+            # Handle metadata
+            try:
+                self.metadata = json.loads(text_data)  # Store metadata for later
+                print(f"Received metadata: {self.metadata}")
+                await self.send(text_data=json.dumps({"response": "Metadata received"}))
+            except json.JSONDecodeError:
+                print(f"Received invalid JSON: {text_data}")
+
         if bytes_data:
             # Handle binary audio data
             print(f"Received audio chunk: {len(bytes_data)} bytes")
 
-            # Example: Save audio chunk to a file
-            with open("audio_chunk.wav", "ab") as f:
-                f.write(bytes_data)
+            # Generate unique filename
+            audio_name = f"audio_chunk_{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
+            file_path = os.path.join(UPLOAD_FOLDER, audio_name)
 
-            # Example: Send confirmation
-            await self.send(text_data="Audio chunk received")
-
-        elif text_data:
-            # Handle text data (e.g., JSON)
+            # Save the audio file
             try:
-                text_data_json = json.loads(text_data)
-                message = text_data_json['message']
-                print(f"Received text message: {message}")
+                with open(file_path, "wb") as f:
+                    f.write(bytes_data)
+                print(f"Saved audio file: {file_path}")
+            except Exception as e:
+                print(f"Error saving file: {str(e)}")
+                return await self.send(text_data=json.dumps({"error": "File saving failed"}))
 
-                # Example: Process the message
-                from speech.views import socket_checking
+            # Process the saved audio file
+            try:
+                from speech.views import process_audio
+                ares = await sync_to_async(process_audio)(file_path)  # Process audio
+                
+                # Include metadata in the response
+                response_data = {
+                    "response": f"Processed: {audio_name}",
+                    "transcription_text": ares,
+                    "metadata": self.metadata  # Send metadata back
+                }
 
-                # Call socket_checking using sync_to_async
-                result = await sync_to_async(socket_checking)(message)
+                await self.send(text_data=json.dumps(response_data))
 
-                # Example: Send a response
-                await self.send(text_data=json.dumps({"response": f"Processed: {result}"}))
-
-            except json.JSONDecodeError:
-                print(f"Received invalid JSON: {text_data}")
-
-        else:
-            print("Received unknown data type")
+            except Exception as e:
+                print(f"Error processing audio: {str(e)}")
+                await self.send(text_data=json.dumps({"error": "Processing failed"}))
 
 class SpeechConsumerv2(AsyncWebsocketConsumer):
     async def connect(self):
