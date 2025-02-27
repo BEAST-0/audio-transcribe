@@ -17,25 +17,16 @@ class MeetingTranscription(models.Model):
     speaker = models.CharField(max_length=255)
     text = models.TextField()
     roomid = models.CharField(max_length=255)
+    username = models.CharField(max_length=255)
 
     def __str__(self):
         return str(self.id)
 
 class CustomUser(models.Model):  
     id = models.AutoField(primary_key=True)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    username = models.CharField(max_length=30, unique=True)
     email = models.EmailField(unique=True)
-    code = models.CharField(max_length=10, unique=True)
-    password = models.CharField(
-        max_length=255,
-        validators=[
-            RegexValidator(
-                regex=r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$',
-                message="Password must be at least 8 characters long, contain at least one letter, one number, and one special character."
-            )
-        ]
-    )
+    token = models.CharField(max_length=10, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -65,67 +65,77 @@ def create_trello_task(task_name, task_description):
     except requests.exceptions.RequestException as e:
         return {"error": f"Trello API request failed: {str(e)}"}
 
-TAG = 'SPEAKER '
+TAG = "SPEAKER "
 
-def create_transcript(output_json, output_transcript,room_id):
-    lines = []
-    with open(output_json, "r") as file:
+def create_transcript(json_path, room_id,username):
+    with open(json_path, "r") as file:
         words = json.load(file)["results"]["channels"][0]["alternatives"][0]["words"]
-        curr_speaker = 0
-        curr_line = ''
-        for word_struct in words:
-            word_speaker = word_struct["speaker"]
-            word = word_struct["punctuated_word"]
-            if word_speaker == curr_speaker:
-                curr_line += ' ' + word
-            else:
-                tag = TAG + str(curr_speaker) + ':'
-                full_line = tag + curr_line + '\n'
-                curr_speaker = word_speaker
-                lines.append(full_line)
-                curr_speaker = word_speaker
-                curr_line = ' ' + word
-        lines.append(TAG + str(curr_speaker) + ':' + curr_line)
-        for line in lines:
-            match = re.match(r"SPEAKER (\d+):\s(.+)", line)
-            if match:
-                speaker_number = int(match.group(1))
-                text = match.group(2)
-            MeetingTranscription.objects.create(speaker=speaker_number,roomid=room_id, text=text)
+    if not words:
+        return []
+    lines = []
+    curr_speaker, curr_line = words[0]["speaker"], ""
+    for word_struct in words:
+        word, word_speaker = word_struct["punctuated_word"], word_struct["speaker"]
+        if word_speaker == curr_speaker:
+            curr_line += " " + word
+        else:
+            full_line = f"{TAG}{curr_speaker}: {curr_line.strip()}"
+            lines.append(full_line)
+            MeetingTranscription.objects.create(speaker=curr_speaker, roomid=room_id, text=curr_line.strip(), username=username)
+            curr_speaker, curr_line = word_speaker, word
     return lines
 
-DIRECTORY = '.'
+TRANSCRIPTS_DIRECTORY = './uploads/transcripts'
+UPLOADS_DIRECTORY = './uploads/'
 
-def print_transcript(room_id):
-    os.makedirs("transcriptions", exist_ok=True)
-    for filename in os.listdir(DIRECTORY):
-        if filename.endswith('.json'):
-            json_path = os.path.join(DIRECTORY, filename)
-            output_transcript = os.path.join("transcriptions", os.path.splitext(filename)[0] + '.txt')
-            transcription_text = create_transcript(json_path, output_transcript, room_id)  # Process the file
+def process_transcriptions(room_id,username, audiofilename):
+    for filename in os.listdir(TRANSCRIPTS_DIRECTORY):
+        if filename == (audiofilename[:-4] + ".json"):
+            json_path = os.path.join(TRANSCRIPTS_DIRECTORY, filename)
+            transcription_text = create_transcript(json_path, room_id, username)
+            audio_path = os.path.join(UPLOADS_DIRECTORY,audiofilename)
             os.remove(json_path)
+            os.remove(audio_path)
             return transcription_text
+
+@csrf_exempt
+@require_POST
+def test_transcription(request, room_id):
+    for filename in os.listdir(TRANSCRIPTS_DIRECTORY):
+        if filename.endswith(".json"):
+            json_path = os.path.join(TRANSCRIPTS_DIRECTORY, filename)
+            transcription_text = create_transcript(json_path, room_id)
+            # os.remove(json_path)
+            return JsonResponse({
+            "message": "Transcription saved and task created successfully.",
+            "transcription_text": transcription_text,
+        })
 
 @csrf_exempt
 def upload_audio(request):
     if request.method != "POST":
-        return JsonResponse({"error": "Invalid request method"}, status=405)
+        return JsonResponse({"error": "Invalid request method."}, status=405)
 
     if "file" not in request.FILES:
-        return JsonResponse({"error": "No file uploaded"}, status=400)
+        return JsonResponse({"error": "No file uploaded."}, status=400)
 
     room_id = request.POST.get('room_id')
     if not room_id:
         return JsonResponse({"error": "No meeting id provided."}, status=400)
     
+    username = request.POST.get('username')
+    if not username:
+        return JsonResponse({"error": "No username provided."}, status=400)
+    
     audio_file = request.FILES["file"]
+    audiofilename = audio_file.name
 
     #Ensure 'uploads/' folder exists
     upload_folder = "uploads"
     os.makedirs(upload_folder, exist_ok=True)
 
     #Save file to 'uploads/' directory
-    file_path = os.path.join(upload_folder, audio_file.name)
+    file_path = os.path.join(upload_folder, audiofilename)
     try:
         with open(file_path, "wb") as f:
             for chunk in audio_file.chunks():
@@ -147,7 +157,8 @@ def upload_audio(request):
         with open(file_path, "rb") as f:
             source = {"buffer": f, "mimetype":'audio/'+MIMETYPE}
             res = dg.transcription.sync_prerecorded(source, options)
-            with open(f"./{audio_file.name[:-4]}.json", "w") as transcript:
+            os.makedirs("uploads/transcripts", exist_ok=True)
+            with open(f"./uploads/transcripts/{audio_file.name[:-4]}.json", "w") as transcript:
                   json.dump(res, transcript, indent=4)
 
         deepgram_result = res
@@ -157,7 +168,8 @@ def upload_audio(request):
         task_name = f"Transcription: {audio_file.name}"
         trello_response = create_trello_task(task_name, transcription_text)
         
-        processed_transcript = print_transcript(room_id)
+        processed_transcript = process_transcriptions(room_id,username, audiofilename)
+
 
         return JsonResponse({
             "message": "Transcription saved and task created successfully",
@@ -278,7 +290,7 @@ class UserCreateView(APIView):
         serializer =UserSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({"message": "User created successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
+            return Response({"message": "User created successfully.", "data": serializer.data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # get request
@@ -287,7 +299,7 @@ def checking(request):
     return JsonResponse({"message": "Hello1, World!"})
 
 def socket_checking(message):
-    return {"message": "From views.socket_checkin" + message}
+    return {"message": "Socket response" + message}
 
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
@@ -295,6 +307,37 @@ def get_meeting_transcriptions(request, room_id):
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)
 
+def process_audio(file_path):
+    """Process an audio file using Deepgram API."""
+    
+    dg = Deepgram(DEEPGRAM_API_KEY)
+    MIMETYPE = "mp3"
+    options = {
+        "punctuate": True,
+        "diarize": True,
+        "model": "general",
+        "tier": "nova"
+    }
+
+    # Send file to Deepgram API for transcription
+    try:
+        with open(file_path, "rb") as f:
+            source = {"buffer": f, "mimetype": f"audio/{MIMETYPE}"}
+            res = dg.transcription.sync_prerecorded(source, options)
+            
+            # Save transcription result as JSON
+            transcription_path = file_path.replace(".wav", ".json")
+            with open(transcription_path, "w") as transcript_file:
+                json.dump(res, transcript_file, indent=4)
+
+        # Extract transcription text
+        deepgram_result = res
+        transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
+
+        return transcription_text
+
+    except Exception as e:
+        return f"Transcription failed: {str(e)}"
 
 class LiveKitTokenView(APIView):
     permission_classes = [AllowAny]  # Adjust permissions as needed
