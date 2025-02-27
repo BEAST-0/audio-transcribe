@@ -164,7 +164,6 @@ def upload_audio(request):
         deepgram_result = res
         transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
 
-        print("transcription_text", transcription_text)
         #Create Trello Task with transcription details
         task_name = f"Transcription: {audio_file.name}"
         trello_response = create_trello_task(task_name, transcription_text)
@@ -311,7 +310,6 @@ def get_meeting_transcriptions(request, room_id):
 def process_audio(file_path,meta_data):
     """Process an audio file using Deepgram API."""
     
-    print("meta_datameta_datameta_datameta_datameta_data",meta_data["meeting_id"])
     dg = Deepgram(DEEPGRAM_API_KEY)
     MIMETYPE = "mp3"
     options = {
