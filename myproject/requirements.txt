@@ -9,3 +9,4 @@ langchain_community
 djangorestframework
 django-cors-headers
 livekit
+openai

@@ -30,7 +30,7 @@ class SpeechConsumer(AsyncWebsocketConsumer):
             print(f"Received audio chunk: {len(bytes_data)} bytes")
 
             # Generate unique filename
-            audio_name = f"audio_chunk_{datetime.now().strftime('%Y%m%d-%H%M%S')}.wav"
+            audio_name = f"audio_chunk.wav"
             file_path = os.path.join(UPLOAD_FOLDER, audio_name)
 
             # Save the audio file
@@ -45,7 +45,7 @@ class SpeechConsumer(AsyncWebsocketConsumer):
             # Process the saved audio file
             try:
                 from speech.views import process_audio
-                ares = await sync_to_async(process_audio)(file_path)  # Process audio
+                ares = await sync_to_async(process_audio)(file_path,self.metadata)  # Process audio
                 
                 # Include metadata in the response
                 response_data = {
