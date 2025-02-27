@@ -164,6 +164,7 @@ def upload_audio(request):
         deepgram_result = res
         transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
 
+        print("transcription_text", transcription_text)
         #Create Trello Task with transcription details
         task_name = f"Transcription: {audio_file.name}"
         trello_response = create_trello_task(task_name, transcription_text)
@@ -307,9 +308,10 @@ def get_meeting_transcriptions(request, room_id):
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)
 
-def process_audio(file_path):
+def process_audio(file_path,meta_data):
     """Process an audio file using Deepgram API."""
     
+    print("meta_datameta_datameta_datameta_datameta_data",meta_data["meeting_id"])
     dg = Deepgram(DEEPGRAM_API_KEY)
     MIMETYPE = "mp3"
     options = {
@@ -321,18 +323,48 @@ def process_audio(file_path):
 
     # Send file to Deepgram API for transcription
     try:
+        UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+        TRANSCRIPTION_FOLDER = os.path.join(os.getcwd(), "transcriptions")
+
+        # Ensure folders exist
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        os.makedirs(TRANSCRIPTION_FOLDER, exist_ok=True)
+
+        # Generate file paths
+        audio_filename = os.path.basename(file_path)  # Get the file name only
+        transcription_filename = f"{audio_filename[:-4]}"+ meta_data["meeting_id"] + ".json"  # Remove extension and add .json
+
+        transcription_path = os.path.join(TRANSCRIPTION_FOLDER, transcription_filename)
+
         with open(file_path, "rb") as f:
             source = {"buffer": f, "mimetype": f"audio/{MIMETYPE}"}
             res = dg.transcription.sync_prerecorded(source, options)
-            
-            # Save transcription result as JSON
-            transcription_path = file_path.replace(".wav", ".json")
+
+        if os.path.exists(transcription_path):
+            with open(transcription_path, "r+") as transcript_file:
+                try:
+                    existing_data = json.load(transcript_file)  # Load existing data
+                except json.JSONDecodeError:
+                    existing_data = []  # If file is empty or invalid, start fresh
+                
+                if not isinstance(existing_data, list):
+                    existing_data = [existing_data]  # Convert to list if not already
+
+                existing_data.append(res)  # Append new result
+
+                transcript_file.seek(0)  # Reset file pointer to beginning
+                json.dump(existing_data, transcript_file, indent=4)  # Overwrite file
+                transcript_file.truncate()  # Remove any extra content if file was larger
+        else:
             with open(transcription_path, "w") as transcript_file:
-                json.dump(res, transcript_file, indent=4)
+                json.dump([res], transcript_file, indent=4)  # Start with an array if new file
+
 
         # Extract transcription text
         deepgram_result = res
         transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
+
+        # processed_transcript = process_transcriptions(1,'username', 'audio_chunk')
 
         return transcription_text
 
