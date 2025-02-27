@@ -17,14 +17,14 @@ class MeetingTranscription(models.Model):
     speaker = models.CharField(max_length=255)
     text = models.TextField()
     roomid = models.CharField(max_length=255)
+    username = models.CharField(max_length=255)
 
     def __str__(self):
         return str(self.id)
 
 class CustomUser(models.Model):  
     id = models.AutoField(primary_key=True)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    username = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     code = models.CharField(max_length=10, unique=True)
     password = models.CharField(
