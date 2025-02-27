@@ -270,7 +270,7 @@ def checking(request):
     return JsonResponse({"message": "Hello1, World!"})
 
 def socket_checking(message):
-    return {"message": "From views.socket_checkin" + message}
+    return {"message": "Socket response" + message}
 
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
