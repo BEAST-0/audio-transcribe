@@ -1,21 +1,36 @@
-import re
+# Standard library imports
 import os
+import re
 import json
 import requests
+
+# Django imports
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.conf import settings
+
+# Third-party package imports
 from dotenv import load_dotenv
 from deepgram import Deepgram
-from django.views.decorators.http import require_POST
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-from speech.models import MeetingTranscription
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import MeetingTranscriptionSerializer, UserSerializer
 from rest_framework.decorators import api_view
+from rest_framework.permissions import AllowAny
+
+# Local imports
+from speech.models import MeetingTranscription
+from .serializers import MeetingTranscriptionSerializer, UserSerializer
+from livekit.api import AccessToken, VideoGrants
+
+  
+
+
+
 
 load_dotenv()
 
@@ -26,6 +41,8 @@ DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
 TRELLO_API_KEY = os.getenv('TRELLO_API_KEY')
 TRELLO_TOKEN = os.getenv('TRELLO_TOKEN')
 TRELLO_LIST_ID = os.getenv('TRELLO_LIST_ID')
+
+
 
 def create_trello_task(task_name, task_description):
     """Function to create a new task in Trello."""
@@ -277,3 +294,64 @@ def get_meeting_transcriptions(request, room_id):
     transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id")
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)
+
+
+class LiveKitTokenView(APIView):
+    permission_classes = [AllowAny]  # Adjust permissions as needed
+
+    def post(self, request):
+        user_identity = request.data.get("user_identity", "guest")  # Unique identifier
+        room_name = request.data.get("room_name", "default-room")  # Room to join
+
+        # LiveKit credentials from settings or environment variables
+        LIVEKIT_API_KEY = os.getenv('LIVEKITAPIKEY')
+        LIVEKIT_SECRET_KEY = os.getenv('LIVEKITAPISECRET')
+
+        if not LIVEKIT_API_KEY or not LIVEKIT_SECRET_KEY:
+            return Response({"error": "LiveKit API credentials are missing"}, status=500)
+
+        try:
+            # Import datetime for proper time handling
+            import datetime
+            
+            # Create token with properly formatted expiration time
+            token = AccessToken(
+                api_key=LIVEKIT_API_KEY,
+                api_secret=LIVEKIT_SECRET_KEY
+            )
+            
+            # Use the grants
+            grants = VideoGrants(
+                room_join=True,
+                room=room_name
+            )
+            
+            # Try to set the grants
+            if hasattr(token, 'with_grants'):
+                token.with_grants(grants)
+            elif hasattr(token, 'video_grant'):
+                token.video_grant = grants
+            
+            # Try to set identity
+            if hasattr(token, 'identity'):
+                token.identity = user_identity
+                
+            # Set expiration using datetime objects instead of integers
+            if hasattr(token, 'set_expires'):
+                # Set expiration to current time + 1 hour
+                expiration = datetime.datetime.now() + datetime.timedelta(hours=1)
+                token.set_expires(expiration)
+            elif hasattr(token, 'expires'):
+                expiration = datetime.datetime.now() + datetime.timedelta(hours=1)
+                token.expires = expiration
+                
+            # Generate token
+            token_jwt = token.to_jwt()
+            return Response({"token": token_jwt})
+            
+        except Exception as e:
+            import traceback
+            return Response({
+                "error": f"Failed to generate token: {str(e)}",
+                "traceback": traceback.format_exc()
+            }, status=500)

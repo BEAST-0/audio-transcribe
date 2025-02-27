@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import UserCreateView, get_meeting_transcriptions, upload_audio
-from .views import upload_audio, create_trello_task,ask_question,checking
+from .views import upload_audio, create_trello_task, ask_question, checking, LiveKitTokenView  
 
 urlpatterns = [
     path("upload_audio/", upload_audio),
@@ -9,6 +9,7 @@ urlpatterns = [
     path("users/", UserCreateView.as_view(), name="user-create"),
     path("testing/", checking, name="checking"),  
     path('transcripts/<str:room_id>/', get_meeting_transcriptions, name='get_meeting_transcriptions'),
+    path("livekit/token/", LiveKitTokenView.as_view(), name="livekit-token"),  
 ]
 
 
