@@ -349,6 +349,7 @@ class LiveKitTokenView(APIView):
         # LiveKit credentials from settings or environment variables
         LIVEKIT_API_KEY = os.getenv('LIVEKITAPIKEY')
         LIVEKIT_SECRET_KEY = os.getenv('LIVEKITAPISECRET')
+        LIVEKIT_SERVER_URL = os.getenv('LIVEKITSERVERURL', 'wss://your-livekit-server.com')  # Get your LiveKit server URL
 
         if not LIVEKIT_API_KEY or not LIVEKIT_SECRET_KEY:
             return Response({"error": "LiveKit API credentials are missing"}, status=500)
@@ -390,7 +391,22 @@ class LiveKitTokenView(APIView):
                 
             # Generate token
             token_jwt = token.to_jwt()
-            return Response({"token": token_jwt})
+            
+            # Generate meeting sharing information
+            meeting_url = f"{LIVEKIT_SERVER_URL}/room/{room_name}?token={token_jwt}"
+            sharing_code = room_name  # You might want to generate a custom code
+            
+            # Return token and meeting info
+            return Response({
+                "token": token_jwt,
+                "meeting_info": {
+                    "room_name": room_name,
+                    "meeting_url": meeting_url,
+                    "sharing_code": sharing_code,
+                    "host": user_identity,
+                    "expires_at": expiration.isoformat() if 'expiration' in locals() else None
+                }
+            })
             
         except Exception as e:
             import traceback
