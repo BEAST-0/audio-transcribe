@@ -363,8 +363,6 @@ def process_audio(file_path):
         with open(file_path, "rb") as f:
             source = {"buffer": f, "mimetype": f"audio/{MIMETYPE}"}
             res = dg.transcription.sync_prerecorded(source, options)
-            
-            # Save transcription result as JSON
             transcription_path = file_path.replace(".wav", ".json")
             with open(transcription_path, "w") as transcript_file:
                 json.dump(res, transcript_file, indent=4)
