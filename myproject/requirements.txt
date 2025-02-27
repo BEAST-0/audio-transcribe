@@ -8,3 +8,4 @@ langchain
 langchain_community
 djangorestframework
 django-cors-headers
+livekit
