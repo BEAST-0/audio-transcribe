@@ -3,6 +3,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 import os
 from datetime import datetime
+import time
 
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -26,26 +27,18 @@ class SpeechConsumer(AsyncWebsocketConsumer):
                 print(f"Received invalid JSON: {text_data}")
 
         if bytes_data:
-            # Handle binary audio data
-            print(f"Received audio chunk: {len(bytes_data)} bytes")
-
-            # Generate unique filename
             audio_name = f"audio_chunk.wav"
             file_path = os.path.join(UPLOAD_FOLDER, audio_name)
-
-            # Save the audio file
             try:
                 with open(file_path, "wb") as f:
                     f.write(bytes_data)
-                print(f"Saved audio file: {file_path}")
             except Exception as e:
-                print(f"Error saving file: {str(e)}")
                 return await self.send(text_data=json.dumps({"error": "File saving failed"}))
 
             # Process the saved audio file
             try:
                 from speech.views import process_audio
-                ares = await sync_to_async(process_audio)(file_path,self.metadata)  # Process audio
+                ares = await sync_to_async(process_audio)(file_path)  # Process audio
                 
                 # Include metadata in the response
                 response_data = {
