@@ -1,6 +1,6 @@
 # Standard library imports
+from datetime import date
 import os
-import re
 import json
 import requests
 
@@ -36,7 +36,6 @@ DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
 TRELLO_API_KEY = os.getenv('TRELLO_API_KEY')
 TRELLO_TOKEN = os.getenv('TRELLO_TOKEN')
 TRELLO_LIST_ID = os.getenv('TRELLO_LIST_ID')
-
 
 
 def create_trello_task(task_name, task_description):
@@ -202,16 +201,16 @@ def upload_audio(request):
 @require_POST
 def ask_question(request):
     try:
-        transcript = """John: Good morning, everyone. Let's start with the project update. Sarah, can you share the status?  
-        Sarah: Sure! We completed the initial UI design, and the dev team will start implementation on March 5th.  
-        Mark: That's great. Also, we need the API documentation finalized by March 8th. Who's taking that?  
-        David: I can handle the API documentation.  
-        John: Perfect. Also, don't forget we have the client presentation on March 10th at 3 PM.  
-        Lisa: I'll prepare the presentation slides by March 9th.  
-        John: Sounds good. Let's also schedule the next team sync on March 12th at 10 AM.  
-        Mark: Noted. Also, Sarah, can you send the updated UI mockups to the team by March 6th?  
-        Sarah: Yes, I'll do that.  
-        John: Great. That's all for today. Thanks, everyone!"""
+        current_date = date.today().strftime('%Y-%m-%d')
+
+        transcript = """SPEAKER 0: Hello. My name is Jeevan."
+        "SPEAKER 1: Hello. Hi. Good evening.",
+        "SPEAKER 0: Good evening, mister Navin. Welcome to you today's session."
+        "SPEAKER 1: Thank you. How are you?"
+        "SPEAKER 0: I'm doing really well. I hope I'm loud and clear to you."
+        "SPEAKER 1: Yeah. Your voice is very clear."
+	    "SPEAKER 0: You should submit the document tomorrow at 10:00 AM."
+	    "SPEAKER 1: Sure."""
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -220,15 +219,20 @@ def ask_question(request):
 
         llm = ChatOpenAI(
             openai_api_key=openai_api_key,
-            model="gpt-4o-mini",  # Use GPT-4o instead of "gpt-4o-mini" if needed
+            model="gpt-4o-mini",
             temperature=0.7,
-            response_format={"type": "json_object"}  # ✅ Use "json_object" instead of "json"
+            response_format={"type": "json_object"}
         )
 
         prompt_template = PromptTemplate(
-            input_variables=["transcript"],
+            input_variables=["transcript","current_date"],
             template="""
             You are an AI assistant that processes meeting transcriptions. 
+            
+            First, identify the actual names of speakers in the transcript using these methods:
+            1. When a speaker refers to another speaker by name (e.g., if "SPEAKER 0" refers to "SPEAKER 1" as "Navin", rename "SPEAKER 1" to "Navin")
+            2. When a speaker identifies themselves by name (e.g., if "SPEAKER 0" says "I am Jeevan" or "my name is Jeevan", rename "SPEAKER 0" to "Jeevan")
+            
             Analyze the following transcript and extract the following details:
 
             - **Meeting Notes**: Summarize key discussion points concisely.
@@ -238,9 +242,20 @@ def ask_question(request):
             Format your response in **valid JSON**:
 
             {{
+                "speakers": [
+                    {{
+                        "original_id": "SPEAKER 0",
+                        "identified_name": "Name identified from transcript or 'Unknown' if not identified"
+                    }},
+                    {{
+                        "original_id": "SPEAKER 1",
+                        "identified_name": "Name identified from transcript or 'Unknown' if not identified"
+                    }}
+                ],
                 "notes": [
                     {{
-                        "topic": "Description of key discussion point"
+                        "topic": "Description of key discussion point",
+                        "speaker": "Identified name of speaker who brought up this point"
                     }}
                 ],
                 "schedules": [
@@ -253,19 +268,29 @@ def ask_question(request):
                 "action_items": [
                     {{
                         "task": "Description of action item",
-                        "assigned_to": "Person's name",
+                        "assigned_to": "Person's identified name",
                         "deadline": "YYYY-MM-DD"
                     }}
                 ],
                 "trello_tasks": [
                     {{
                         "task": "Description of action item",
-                        "assigned_to": "Person's name",
+                        "assigned_to": "Person's identified name",
                         "deadline": "YYYY-MM-DD",
                         "trello_list": "To Do"
                     }}
                 ]
             }}
+
+            IMPORTANT: For all deadlines and schedules, convert relative time references to actual dates based on today's date ({current_date}):
+            - "tomorrow" = the day after {current_date}
+            - "next week" = 7 days after {current_date}
+            - "next month" = the same day in the following month
+            - "in X days/weeks/months" = calculate the specific date accordingly.
+
+            When processing the transcript, replace all instances of speaker numbers with their identified names in your analysis. If a name cannot be identified, continue using the original speaker identifier.
+
+            Look carefully for phrases like "I am [Name]", "My name is [Name]", "This is [Name]", "I'm [Name]", or where a speaker refers to themselves in the third person. Also identify professional titles or roles when names aren't available.
 
             **Transcript:**
             {transcript}
@@ -273,11 +298,10 @@ def ask_question(request):
         )
 
         chain = LLMChain(llm=llm, prompt=prompt_template)
-        answer = chain.run(transcript=transcript)  # Ensure correct variable mapping
+        answer = chain.run(transcript=transcript, current_date=current_date)
 
         print(f"Raw Answer: {answer}")
 
-        # Ensure the response is valid JSON
         try:
             json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
             notes = json_answer.get("notes", [])
