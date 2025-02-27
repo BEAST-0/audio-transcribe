@@ -36,6 +36,7 @@ DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY')
 TRELLO_API_KEY = os.getenv('TRELLO_API_KEY')
 TRELLO_TOKEN = os.getenv('TRELLO_TOKEN')
 TRELLO_LIST_ID = os.getenv('TRELLO_LIST_ID')
+created_by_ai_label_id = os.getenv("TRELLO_AI_LABEL_ID") 
 
 
 def create_trello_task(task_name, task_description):
@@ -48,6 +49,7 @@ def create_trello_task(task_name, task_description):
         "key": TRELLO_API_KEY,
         "token": TRELLO_TOKEN,
         "idList": TRELLO_LIST_ID,
+        "idLabels": created_by_ai_label_id,
         "name": task_name,
         "desc": task_description
     }
@@ -200,17 +202,36 @@ def upload_audio(request):
 @csrf_exempt
 @require_POST
 def ask_question(request):
-    try:
+
+   """
+     Note:- 
+
+    Process meeting transcripts to extract key information and create Trello tasks.
+    
+    This function:
+    1. Takes a meeting transcript from a POST request
+    2. Identifies speakers by their actual names when mentioned in the conversation
+    3. Extracts meeting notes, scheduled events, and action items
+    4. Creates Trello cards for each action item
+    5. Returns the structured information as JSON
+    
+    The system handles relative dates (like "tomorrow" or "next week") by converting 
+    them to actual dates based on the current date.
+    """
+   
+   try:
         current_date = date.today().strftime('%Y-%m-%d')
 
-        transcript = """SPEAKER 0: Hello. My name is Jeevan."
-        "SPEAKER 1: Hello. Hi. Good evening.",
-        "SPEAKER 0: Good evening, mister Navin. Welcome to you today's session."
-        "SPEAKER 1: Thank you. How are you?"
-        "SPEAKER 0: I'm doing really well. I hope I'm loud and clear to you."
-        "SPEAKER 1: Yeah. Your voice is very clear."
-	    "SPEAKER 0: You should submit the document tomorrow at 10:00 AM."
-	    "SPEAKER 1: Sure."""
+        transcript = """SPEAKER 0: Hello.", "SPEAKER 1: Hello, Ajay.", "SPEAKER 0: Hi, Anu. How are you today?", "SPEAKER 1: I'm doing well. How about you?", "SPEAKER 0: I'm good too. So, Anu, I have a task for you.", "SPEAKER 1: Sure, Ajay. What is it?", "SPEAKER 0: I need you to prepare a report on the project status by tomorrow.", "SPEAKER 1: Alright. What details should I include?", "SPEAKER 0: Include the progress, pending tasks, and any roadblocks you’re facing.", "SPEAKER 1: Got it. Should I send it by email?", "SPEAKER 0: Yes, please. Send it by 5 PM.", "SPEAKER 1: Sure, I'll do that.", "SPEAKER 0: Great. Let me know if you need any help.", "SPEAKER 1: Will do. Thanks, Ajay.", "SPEAKER 0: You're welcome, Anu."""
+       
+         # transcript = """SPEAKER 0: Hello. My name is Jeevan."
+        # "SPEAKER 1: Hello. Hi. Good evening.",
+        # "SPEAKER 0: Good evening, mister Navin. Welcome to you today's session."
+        # "SPEAKER 1: Thank you. How are you?"
+        # "SPEAKER 0: I'm doing really well. I hope I'm loud and clear to you."
+        # "SPEAKER 1: Yeah. Your voice is very clear."
+	    # "SPEAKER 0: You should submit the document tomorrow at 10:00 AM."
+	    # "SPEAKER 1: Sure."""
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -313,15 +334,33 @@ def ask_question(request):
             # iterate over the trello tasks and create them
             for task in trello_tasks:
                 task_name = task.get("task", "No task name")
-                task_description = task.get("assigned_to", "No assignee") + " - " + task.get("deadline", "No deadline")
-                trello_response = create_trello_task(task_name, task_description)
+                # task_description = task.get("assigned_to", "No assignee") + " - " + task.get("deadline", "No deadline")
+            for task in trello_tasks:
+             task_name = task.get("task", "No task name")
+    
+    # Create a Trello-friendly description without excessive markdown
+            task_description = (
+        f"Task Details:\n"
+        f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+        f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+        f"\n"
+        f"Task Context:\n"
+        f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
+        f"\n"
+        f"Related Meeting Notes:\n"
+        f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
+        f"\n"
+        f"Additional Information:\n"
+        f"- Created on: {current_date}\n"
+        f"- Extracted automatically from meeting transcript"
+    )
+            trello_response = create_trello_task(task_name, task_description)
 
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON format in AI response.", "raw_output": answer}, status=500)
 
         return JsonResponse({"answer": json_answer})
-
-    except Exception as e:
+   except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
 class UserCreateView(APIView):
