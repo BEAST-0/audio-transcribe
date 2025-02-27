@@ -44,3 +44,14 @@ class SpeechConsumer(AsyncWebsocketConsumer):
 
         else:
             print("Received unknown data type")
+
+class SpeechConsumerv2(AsyncWebsocketConsumer):
+    async def connect(self):
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        pass
+
+    async def receive(self, bytes_data=None, text_data=None):
+        print("hehfdhkjf")
+        await self.send(text_data=json.dumps({"response": "Processed"}))
