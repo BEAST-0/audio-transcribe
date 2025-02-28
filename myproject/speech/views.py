@@ -57,7 +57,14 @@ def create_trello_task(task_name, task_description):
     try:
         response = requests.post(url, params=params)
         response.raise_for_status()  # Raise an error if request fails
-        return response.json()
+        trello_card = response.json()
+
+      # Extract the Trello card URL
+        return {
+            "id": trello_card.get("id"),
+            "name": trello_card.get("name"),
+            "trello_card_url": trello_card.get("shortUrl"),
+        }
     except requests.exceptions.RequestException as e:
         return {"error": f"Trello API request failed: {str(e)}"}
 
@@ -202,36 +209,70 @@ def upload_audio(request):
 @csrf_exempt
 @require_POST
 def ask_question(request):
-
-   """
-     Note:- 
-
-    Process meeting transcripts to extract key information and create Trello tasks.
-    
-    This function:
-    1. Takes a meeting transcript from a POST request
-    2. Identifies speakers by their actual names when mentioned in the conversation
-    3. Extracts meeting notes, scheduled events, and action items
-    4. Creates Trello cards for each action item
-    5. Returns the structured information as JSON
-    
-    The system handles relative dates (like "tomorrow" or "next week") by converting 
-    them to actual dates based on the current date.
-    """
-   
-   try:
+    try:
         current_date = date.today().strftime('%Y-%m-%d')
 
-        transcript = """SPEAKER 0: Hello.", "SPEAKER 1: Hello, Ajay.", "SPEAKER 0: Hi, Anu. How are you today?", "SPEAKER 1: I'm doing well. How about you?", "SPEAKER 0: I'm good too. So, Anu, I have a task for you.", "SPEAKER 1: Sure, Ajay. What is it?", "SPEAKER 0: I need you to prepare a report on the project status by tomorrow.", "SPEAKER 1: Alright. What details should I include?", "SPEAKER 0: Include the progress, pending tasks, and any roadblocks you’re facing.", "SPEAKER 1: Got it. Should I send it by email?", "SPEAKER 0: Yes, please. Send it by 5 PM.", "SPEAKER 1: Sure, I'll do that.", "SPEAKER 0: Great. Let me know if you need any help.", "SPEAKER 1: Will do. Thanks, Ajay.", "SPEAKER 0: You're welcome, Anu."""
-       
-         # transcript = """SPEAKER 0: Hello. My name is Jeevan."
-        # "SPEAKER 1: Hello. Hi. Good evening.",
-        # "SPEAKER 0: Good evening, mister Navin. Welcome to you today's session."
-        # "SPEAKER 1: Thank you. How are you?"
-        # "SPEAKER 0: I'm doing really well. I hope I'm loud and clear to you."
-        # "SPEAKER 1: Yeah. Your voice is very clear."
-	    # "SPEAKER 0: You should submit the document tomorrow at 10:00 AM."
-	    # "SPEAKER 1: Sure."""
+        transcript = """SPEAKER 0: Hello.  
+SPEAKER 1: Hello, Ajay.  
+SPEAKER 0: Hi, Anu. How are you today?  
+SPEAKER 1: I'm doing well. How about you?  
+SPEAKER 0: I'm good too. So, Anu, I have a task for you.  
+SPEAKER 1: Sure, Ajay. What is it?  
+SPEAKER 0: I need you to prepare a report on the project status by tomorrow.  
+SPEAKER 1: Alright. What details should I include?  
+SPEAKER 0: Include the progress, pending tasks, and any roadblocks you’re facing.  
+SPEAKER 1: Got it. Should I send it by email?  
+SPEAKER 0: Yes, please. Send it by 5 PM.  
+SPEAKER 1: Sure, I'll do that.  
+SPEAKER 0: Great. Let me know if you need any help.  
+SPEAKER 1: Will do. Thanks, Ajay.  
+SPEAKER 0: You're welcome, Anu.  
+
+SPEAKER 0: Hey, Naveena, are you there?  
+SPEAKER 2: Yes, Ajay. What's up?  
+SPEAKER 0: I need you to finalize the presentation slides for Friday's client meeting.  
+SPEAKER 2: Alright, do we have a specific structure or template to follow?  
+SPEAKER 0: Yes, use the template from our last presentation. Just update the numbers and include the latest data.  
+SPEAKER 2: Got it. Should I run it by you before finalizing?  
+SPEAKER 0: Yes, let’s review it together by Thursday evening.  
+SPEAKER 2: Sounds good. I'll work on it today.  
+
+SPEAKER 0: Mubashir, I have something for you as well.  
+SPEAKER 3: Sure, Ajay. What’s the task?  
+SPEAKER 0: We need to deploy the latest feature update to the staging server by tonight.  
+SPEAKER 3: Okay. Have all the test cases been cleared?  
+SPEAKER 0: Yes, QA signed off on it this morning.  
+SPEAKER 3: Alright, I’ll handle the deployment. Should I notify the team once it’s live?  
+SPEAKER 0: Yes, send an update on the project channel once it's done.  
+SPEAKER 3: Will do.  
+
+SPEAKER 0: Sooraj, I need your help too.  
+SPEAKER 4: Sure, Ajay. What do you need?  
+SPEAKER 0: Can you coordinate with the design team and get the new UI mockups finalized by Wednesday?  
+SPEAKER 4: Absolutely. Are there any specific changes they need to focus on?  
+SPEAKER 0: Yes, the client wants a cleaner layout with better contrast for accessibility.  
+SPEAKER 4: Got it. I’ll make sure they address those points. Should I set up a meeting with them?  
+SPEAKER 0: Yes, schedule a quick call tomorrow morning.  
+SPEAKER 4: Will do.  
+
+SPEAKER 1: Ajay, I had a quick question about my report. Do we need to include individual team member contributions?  
+SPEAKER 0: Yes, but keep it high-level. Just mention key contributions, no need for too much detail.  
+SPEAKER 1: Okay, thanks!  
+
+SPEAKER 2: Ajay, regarding the slides, should we include client-specific metrics, or just our internal performance data?  
+SPEAKER 0: Good question. Include both, but highlight client-specific improvements more.  
+SPEAKER 2: Got it.  
+
+SPEAKER 3: Deployment might take an hour or so. Do you want me to run post-deployment tests too?  
+SPEAKER 0: Yes, please. Make sure everything is working fine before notifying the team.  
+SPEAKER 3: Understood.  
+
+SPEAKER 4: The design team might need extra time if they run into issues. Do we have a hard deadline?  
+SPEAKER 0: We need it finalized by Wednesday, but let me know if they need an extension.  
+SPEAKER 4: Will do.  
+
+SPEAKER 0: Great! Let’s all sync up tomorrow to check progress. Thanks, everyone!  
+"""
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -330,38 +371,38 @@ def ask_question(request):
             action_items = json_answer.get("action_items", [])
             trello_tasks = json_answer.get("trello_tasks", [])
 
-            print(f"trello_tasks: {trello_tasks[0]}")
-            # iterate over the trello tasks and create them
+            trello_responses = []
             for task in trello_tasks:
                 task_name = task.get("task", "No task name")
-                # task_description = task.get("assigned_to", "No assignee") + " - " + task.get("deadline", "No deadline")
-            for task in trello_tasks:
-             task_name = task.get("task", "No task name")
-    
-    # Create a Trello-friendly description without excessive markdown
-            task_description = (
-        f"Task Details:\n"
-        f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
-        f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
-        f"\n"
-        f"Task Context:\n"
-        f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
-        f"\n"
-        f"Related Meeting Notes:\n"
-        f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
-        f"\n"
-        f"Additional Information:\n"
-        f"- Created on: {current_date}\n"
-        f"- Extracted automatically from meeting transcript"
-    )
-            trello_response = create_trello_task(task_name, task_description)
+                task_description = (
+                    f"Task Details:\n"
+                    f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+                    f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+                    f"\n"
+                    f"Task Context:\n"
+                    f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
+                    f"\n"
+                    f"Related Meeting Notes:\n"
+                    f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
+                    f"\n"
+                    f"Additional Information:\n"
+                    f"- Created on: {current_date}\n"
+                    f"- Extracted automatically from meeting transcript"
+                )
+                
+                trello_response = create_trello_task(task_name, task_description)
+                trello_responses.append(trello_response)
 
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON format in AI response.", "raw_output": answer}, status=500)
 
-        return JsonResponse({"answer": json_answer})
-   except Exception as e:
+        return JsonResponse({"answer": json_answer, "trello_responses": trello_responses})
+    except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+
+
 
 class UserCreateView(APIView):
     def post(self, request):
