@@ -834,21 +834,23 @@ def meeting_end_alert(request):
 @require_POST
 def get_meeting_details_by_username(request):
     try:
-        # Get username from request
-        username = json.loads(request.body).get("username")
-        print("username", username)
-        
-        # Fetch all meeting records for the given username and return all fields
-        meetings = Meeting.objects.filter(username=username).order_by("id").values()  
-        meetings_list = list(meetings)  # Convert QuerySet to a list of dictionaries
+        data = json.loads(request.body)
+        username = data.get("username")
+        if not username:
+            return JsonResponse({"error": "Username is required."}, status=400)
+        room_ids = MeetingUser.objects.filter(username=username).values_list("roomid", flat=True)
+        print(room_ids)  # Debugging: Check if it's a list of values
 
-        # iterate and convert airesponse to json
+        meetings = Meeting.objects.filter(roomid__in=room_ids).order_by("id").values()  # Use `__in` to match multiple values
+        meetings_list = list(meetings)
+
         for meeting in meetings_list:
             meeting["airesponse"] = json.loads(meeting["airesponse"])
-        
-        return JsonResponse({"message": "Meeting details fetched successfully", "data": meetings_list})
+
+        return JsonResponse({"meetings": meetings_list})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
 
 
 @csrf_exempt
