@@ -19,6 +19,7 @@ class MeetingTranscription(models.Model):
     text = models.TextField()
     roomid = models.CharField(max_length=255)
     username = models.CharField(max_length=255)
+    order_no = models.IntegerField()
 
     def __str__(self):
         return str(self.id)
@@ -32,3 +33,14 @@ class CustomUser(models.Model):
 
     def __str__(self):
         return self.email
+# new table for meeting_user
+
+class MeetingUser(models.Model):
+    id = models.AutoField(primary_key=True)
+    username = models.CharField(max_length=255)
+    roomid = models.CharField(max_length=255)
+    createdat = models.DateTimeField(auto_now_add=True)
+    updatedat = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.username
