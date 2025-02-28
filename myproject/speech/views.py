@@ -8,7 +8,6 @@ import requests
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from django.conf import settings
 
 # Third-party package imports
 from dotenv import load_dotenv
@@ -23,8 +22,8 @@ from rest_framework.decorators import api_view
 from rest_framework.permissions import AllowAny
 
 # Local imports
-from speech.models import MeetingTranscription
-from .serializers import MeetingTranscriptionSerializer, UserSerializer
+from speech.models import Meeting, MeetingTranscription
+from .serializers import MeetingTranscriptionSerializer, UserSerializer, MeetingSerializer
 from livekit.api import AccessToken, VideoGrants
 
 load_dotenv()
@@ -108,8 +107,14 @@ def create_transcript(json_path, room_id,username):
     MeetingTranscription.objects.bulk_create(bulk_objects)
     return lines
 
+
+
+
 TRANSCRIPTS_DIRECTORY = './uploads/transcripts'
 UPLOADS_DIRECTORY = './uploads/'
+
+
+
 
 def process_transcriptions(room_id,username, audiofilename):
     for filename in os.listdir(TRANSCRIPTS_DIRECTORY):
@@ -121,18 +126,6 @@ def process_transcriptions(room_id,username, audiofilename):
             os.remove(audio_path)
             return transcription_text
 
-@csrf_exempt
-@require_POST
-def test_transcription(request, room_id):
-    for filename in os.listdir(TRANSCRIPTS_DIRECTORY):
-        if filename.endswith(".json"):
-            json_path = os.path.join(TRANSCRIPTS_DIRECTORY, filename)
-            transcription_text = create_transcript(json_path, room_id)
-            # os.remove(json_path)
-            return JsonResponse({
-            "message": "Transcription saved and task created successfully.",
-            "transcription_text": transcription_text,
-        })
 
 @csrf_exempt
 def upload_audio(request):
@@ -206,73 +199,56 @@ def upload_audio(request):
         return JsonResponse({"error": f"Unexpected error: {str(e)}"}, status=500)
 
 
+@api_view(['GET'])
+def get_summary(request, room_id, username):
+    if not room_id:
+        return JsonResponse({"error": "No meeting id provided."}, status=400)
+    summaries = Meeting.objects.filter(roomid=room_id, username=username).order_by("id").values_list("airesponse", flat = True)
+    if len(summaries) == 1:
+        # Parse the JSON string into a Python dict
+        parsed_summary = json.loads(summaries[0])
+        return Response(parsed_summary)
+    else:
+        # Handle multiple summaries if needed
+        parsed_summaries = [json.loads(summary) for summary in summaries]
+        return Response(parsed_summaries)
+
+@api_view(['GET'])
+def get_all_meetings(request, username):
+    if not username:
+        return JsonResponse({"error": "No username provided."}, status=400)
+    meetings = Meeting.objects.filter(username=username).order_by("id")
+    serialized_meetings = MeetingSerializer(meetings, many=True)
+    return Response(serialized_meetings.data)
+
+#saves gpt answer to db. only hit this api once per meeting.
 @csrf_exempt
 @require_POST
-def ask_question(request):
+def ask_question(request): 
     try:
         current_date = date.today().strftime('%Y-%m-%d')
 
-        transcript = """SPEAKER 0: Hello.  
-SPEAKER 1: Hello, Ajay.  
-SPEAKER 0: Hi, Anu. How are you today?  
-SPEAKER 1: I'm doing well. How about you?  
-SPEAKER 0: I'm good too. So, Anu, I have a task for you.  
-SPEAKER 1: Sure, Ajay. What is it?  
-SPEAKER 0: I need you to prepare a report on the project status by tomorrow.  
-SPEAKER 1: Alright. What details should I include?  
-SPEAKER 0: Include the progress, pending tasks, and any roadblocks you’re facing.  
-SPEAKER 1: Got it. Should I send it by email?  
-SPEAKER 0: Yes, please. Send it by 5 PM.  
-SPEAKER 1: Sure, I'll do that.  
-SPEAKER 0: Great. Let me know if you need any help.  
-SPEAKER 1: Will do. Thanks, Ajay.  
-SPEAKER 0: You're welcome, Anu.  
+        room_id = request.POST.get('room_id')
+        if not room_id:
+            return JsonResponse({"error": "No meeting id provided."}, status=400)
+    
+        username = request.POST.get('username')
+        if not username:
+            return JsonResponse({"error": "No username provided."}, status=400)
 
-SPEAKER 0: Hey, Naveena, are you there?  
-SPEAKER 2: Yes, Ajay. What's up?  
-SPEAKER 0: I need you to finalize the presentation slides for Friday's client meeting.  
-SPEAKER 2: Alright, do we have a specific structure or template to follow?  
-SPEAKER 0: Yes, use the template from our last presentation. Just update the numbers and include the latest data.  
-SPEAKER 2: Got it. Should I run it by you before finalizing?  
-SPEAKER 0: Yes, let’s review it together by Thursday evening.  
-SPEAKER 2: Sounds good. I'll work on it today.  
+        transcriptions = MeetingTranscription.objects.filter(roomid=room_id, username=username).order_by("id").values("text")
+        transcript = " "
+        for transcription in transcriptions:
+            transcript += transcription["text"] + " "
 
-SPEAKER 0: Mubashir, I have something for you as well.  
-SPEAKER 3: Sure, Ajay. What’s the task?  
-SPEAKER 0: We need to deploy the latest feature update to the staging server by tonight.  
-SPEAKER 3: Okay. Have all the test cases been cleared?  
-SPEAKER 0: Yes, QA signed off on it this morning.  
-SPEAKER 3: Alright, I’ll handle the deployment. Should I notify the team once it’s live?  
-SPEAKER 0: Yes, send an update on the project channel once it's done.  
-SPEAKER 3: Will do.  
-
-SPEAKER 0: Sooraj, I need your help too.  
-SPEAKER 4: Sure, Ajay. What do you need?  
-SPEAKER 0: Can you coordinate with the design team and get the new UI mockups finalized by Wednesday?  
-SPEAKER 4: Absolutely. Are there any specific changes they need to focus on?  
-SPEAKER 0: Yes, the client wants a cleaner layout with better contrast for accessibility.  
-SPEAKER 4: Got it. I’ll make sure they address those points. Should I set up a meeting with them?  
-SPEAKER 0: Yes, schedule a quick call tomorrow morning.  
-SPEAKER 4: Will do.  
-
-SPEAKER 1: Ajay, I had a quick question about my report. Do we need to include individual team member contributions?  
-SPEAKER 0: Yes, but keep it high-level. Just mention key contributions, no need for too much detail.  
-SPEAKER 1: Okay, thanks!  
-
-SPEAKER 2: Ajay, regarding the slides, should we include client-specific metrics, or just our internal performance data?  
-SPEAKER 0: Good question. Include both, but highlight client-specific improvements more.  
-SPEAKER 2: Got it.  
-
-SPEAKER 3: Deployment might take an hour or so. Do you want me to run post-deployment tests too?  
-SPEAKER 0: Yes, please. Make sure everything is working fine before notifying the team.  
-SPEAKER 3: Understood.  
-
-SPEAKER 4: The design team might need extra time if they run into issues. Do we have a hard deadline?  
-SPEAKER 0: We need it finalized by Wednesday, but let me know if they need an extension.  
-SPEAKER 4: Will do.  
-
-SPEAKER 0: Great! Let’s all sync up tomorrow to check progress. Thanks, everyone!  
-"""
+        # transcript = """SPEAKER 0: Hello. My name is Jeevan."
+        # "SPEAKER 1: Hello. Hi. Good evening.",
+        # "SPEAKER 0: Good evening, mister Navin. Welcome to you today's session."
+        # "SPEAKER 1: Thank you. How are you?"
+        # "SPEAKER 0: I'm doing really well. I hope I'm loud and clear to you."
+        # "SPEAKER 1: Yeah. Your voice is very clear."
+	    # "SPEAKER 0: You should submit the document tomorrow at 10:00 AM."
+	    # "SPEAKER 1: Sure."""
 
         openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -287,37 +263,36 @@ SPEAKER 0: Great! Let’s all sync up tomorrow to check progress. Thanks, everyo
         )
 
         prompt_template = PromptTemplate(
-            input_variables=["transcript","current_date"],
+            input_variables=["meeting_transcription", "current_date"],
             template="""
-            You are an AI assistant that processes meeting transcriptions. 
-            
-            First, identify the actual names of speakers in the transcript using these methods:
-            1. When a speaker refers to another speaker by name (e.g., if "SPEAKER 0" refers to "SPEAKER 1" as "Navin", rename "SPEAKER 1" to "Navin")
-            2. When a speaker identifies themselves by name (e.g., if "SPEAKER 0" says "I am Jeevan" or "my name is Jeevan", rename "SPEAKER 0" to "Jeevan")
+            You are an AI assistant that processes meeting transcriptions where speakers are not explicitly identified.
             
             Analyze the following transcript and extract the following details:
-
+            - **Speaker Identification**: Identify different speakers based on conversational flow, pronouns used, questions asked and answers given.
             - **Meeting Notes**: Summarize key discussion points concisely.
             - **Schedules**: Identify any dates, times, or deadlines mentioned.
             - **Action Items**: List tasks assigned to specific individuals, including deadlines.
-
+            
+            Speaker identification guidelines:
+            1. Pay attention to shifts in perspective (e.g., "I will" vs "you should")
+            2. Track question-answer pairs to identify different speakers
+            3. Look for names mentioned in third-person vs first-person references
+            4. Consider the context of who would likely assign tasks vs who would accept them
+            5. Watch for confirmation responses that indicate a different speaker
+            
             Format your response in **valid JSON**:
-
             {{
+                "summary": "Brief but comprehensive summary of the meeting capturing all key points, decisions, deadlines, and action items in an easy-to-understand format",
                 "speakers": [
                     {{
-                        "original_id": "SPEAKER 0",
-                        "identified_name": "Name identified from transcript or 'Unknown' if not identified"
-                    }},
-                    {{
-                        "original_id": "SPEAKER 1",
-                        "identified_name": "Name identified from transcript or 'Unknown' if not identified"
+                        "speaker_id": "SPEAKER_1",
+                        "identified_name": "Name identified from transcript or role description if name unknown"
                     }}
                 ],
                 "notes": [
                     {{
                         "topic": "Description of key discussion point",
-                        "speaker": "Identified name of speaker who brought up this point"
+                        "speaker": "Identified name or role of speaker"
                     }}
                 ],
                 "schedules": [
@@ -330,29 +305,35 @@ SPEAKER 0: Great! Let’s all sync up tomorrow to check progress. Thanks, everyo
                 "action_items": [
                     {{
                         "task": "Description of action item",
-                        "assigned_to": "Person's identified name",
+                        "assigned_to": "Person's identified name or role",
+                        "assigned_by": "Person who assigned the task",
                         "deadline": "YYYY-MM-DD"
                     }}
                 ],
                 "trello_tasks": [
                     {{
                         "task": "Description of action item",
-                        "assigned_to": "Person's identified name",
+                        "assigned_to": "Person's identified name or role",
+                        "assigned_by": "Person who assigned the task",
                         "deadline": "YYYY-MM-DD",
                         "trello_list": "To Do"
                     }}
                 ]
             }}
-
+            
             IMPORTANT: For all deadlines and schedules, convert relative time references to actual dates based on today's date ({current_date}):
             - "tomorrow" = the day after {current_date}
             - "next week" = 7 days after {current_date}
             - "next month" = the same day in the following month
             - "in X days/weeks/months" = calculate the specific date accordingly.
-
-            When processing the transcript, replace all instances of speaker numbers with their identified names in your analysis. If a name cannot be identified, continue using the original speaker identifier.
-
-            Look carefully for phrases like "I am [Name]", "My name is [Name]", "This is [Name]", "I'm [Name]", or where a speaker refers to themselves in the third person. Also identify professional titles or roles when names aren't available.
+            
+            SPEAKER IDENTIFICATION STRATEGY:
+            1. First, segment the transcript by identifying natural breaks in conversation
+            2. Look for names mentioned directly (e.g., "Naveen, can you...")
+            3. Analyze question-answer patterns to separate speakers
+            4. Track pronoun usage changes (I/you/we) to detect speaker changes
+            5. For task assignments, the person accepting the task is typically the assignee
+            6. Confirmations like "Ok fine" usually indicate a return to the original speaker
 
             **Transcript:**
             {transcript}
@@ -361,8 +342,6 @@ SPEAKER 0: Great! Let’s all sync up tomorrow to check progress. Thanks, everyo
 
         chain = LLMChain(llm=llm, prompt=prompt_template)
         answer = chain.run(transcript=transcript, current_date=current_date)
-
-        print(f"Raw Answer: {answer}")
 
         try:
             json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
@@ -395,8 +374,10 @@ SPEAKER 0: Great! Let’s all sync up tomorrow to check progress. Thanks, everyo
 
         except json.JSONDecodeError:
             return JsonResponse({"error": "Invalid JSON format in AI response.", "raw_output": answer}, status=500)
+        
+        Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer))
 
-        return JsonResponse({"answer": json_answer, "trello_responses": trello_responses})
+        return JsonResponse({"answer": json_answer})
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
@@ -531,3 +512,71 @@ class LiveKitTokenView(APIView):
                 "error": f"Failed to generate token: {str(e)}",
                 "traceback": traceback.format_exc()
             }, status=500)
+
+@csrf_exempt
+@require_POST
+def assign_trello_tasks_from_meeting(request):
+    """
+    Fetches the meeting summary from the database, extracts Trello tasks, and creates Trello cards.
+    
+    Args:
+        room_id (str): The room ID of the meeting.
+        username (str): The username associated with the meeting.
+    
+    Returns:
+        JsonResponse: A response containing the results of the Trello card creation process.
+    """
+    try:
+        # Parse JSON data from the request body
+        data = json.loads(request.body)
+        
+        # Extract room_id and username from the parsed JSON data
+        room_id = data.get("room_id")
+        username = data.get("username")
+        # Fetch the meeting summary from the database
+        summaries = Meeting.objects.filter(roomid=room_id, username=username).order_by("id").values_list("airesponse", flat=True)
+    
+        if not summaries:
+            return JsonResponse({"error": "No meeting summary found for the given room ID and username."}, status=404)
+        
+        # Parse the first summary (assuming only one summary is needed)
+        meeting_summary = json.loads(summaries[0])
+        
+        # Extract Trello tasks from the meeting summary
+        trello_tasks = meeting_summary.get("trello_tasks", [])
+        
+        if not trello_tasks:
+            return JsonResponse({"error": "No Trello tasks found in the meeting summary."}, status=404)
+        
+        # Create Trello cards for each task
+        trello_responses = []
+        for task in trello_tasks:
+            task_name = task.get("task", "No task name")
+            task_description = (
+                f"Task Details:\n"
+                f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+                f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+                f"\n"
+                f"Task Context:\n"
+                f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
+                f"\n"
+                f"Related Meeting Notes:\n"
+                f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
+                f"\n"
+                f"Additional Information:\n"
+                f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
+                f"- Extracted automatically from meeting transcript"
+            )
+            
+            # Create the Trello task
+            trello_response = create_trello_task(task_name, task_description)
+            trello_responses.append(trello_response)
+        
+        # Return the results
+        return JsonResponse({
+            "message": "Trello tasks created successfully.",
+            "trello_responses": trello_responses
+        }, status=200)
+    
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
