@@ -22,7 +22,7 @@ from rest_framework.decorators import api_view
 from rest_framework.permissions import AllowAny
 
 # Local imports
-from speech.models import Meeting, MeetingTranscription
+from speech.models import CustomUser, Meeting, MeetingTranscription
 from .serializers import MeetingTranscriptionSerializer, UserSerializer, MeetingSerializer
 from livekit.api import AccessToken, VideoGrants
 
@@ -577,6 +577,47 @@ def assign_trello_tasks_from_meeting(request):
             "message": "Trello tasks created successfully.",
             "trello_responses": trello_responses
         }, status=200)
+    
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+@csrf_exempt
+def get_user_details(request):
+    """
+    API endpoint to fetch user details based on username.
+    
+    Args:
+        request (HttpRequest): The HTTP request object containing the `username` as a query parameter.
+    
+    Returns:
+        JsonResponse: A response containing the user details or an error message.
+    """
+    try:
+        # Extract username from the query parameters
+        username = request.GET.get("username")
+        print("Received username:", username)  # Debugging: Print the received username
+        
+        # Validate the username
+        if not username:
+            return JsonResponse({"error": "Username is required."}, status=400)
+        
+        # Fetch the user details from the database
+        user = CustomUser.objects.filter(username=username).first()
+        
+        if not user:
+            return JsonResponse({"error": "User not found."}, status=404)
+        
+        # Prepare the user details to return
+        user_details = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else None,
+            # Add other fields as needed
+        }
+        
+        # Return the user details
+        return JsonResponse({"user": user_details}, status=200)
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

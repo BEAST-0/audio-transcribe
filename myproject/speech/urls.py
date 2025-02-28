@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import assign_trello_tasks_from_meeting, get_all_meetings, get_summary, upload_audio, create_trello_task, ask_question, checking, LiveKitTokenView  
+from .views import assign_trello_tasks_from_meeting, get_all_meetings, get_summary, get_user_details, upload_audio, create_trello_task, ask_question, checking, LiveKitTokenView  
 from .views import UserCreateView, get_meeting_transcriptions, upload_audio
 
 urlpatterns = [
@@ -13,6 +13,7 @@ urlpatterns = [
     path('summary_and_action/<str:room_id>/<str:username>/', get_summary, name='get_summary'),
     path('meetings/<str:username>', get_all_meetings, name='get_all_meetings'),
     path('assign-trello-tasks/', assign_trello_tasks_from_meeting, name='assign_trello_tasks'),
+    path('get-user-details/', get_user_details, name='get_user_details'),
 ]
 
 
