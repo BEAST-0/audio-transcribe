@@ -401,6 +401,33 @@ def checking(request):
 def socket_checking(message):
     return {"message": "Socket response" + message}
 
+
+def check_meeting_exists(meta_data):
+    if not Meeting.objects.filter(roomid=meta_data.get('room_id')).exists():
+        print("Creating meeting")
+        Meeting.objects.create(
+            title=meta_data.get('room_id'),
+            userid=meta_data.get('userid'),
+            createdat= datetime.now(),
+            updatedat= datetime.now()
+        )
+    return
+
+
+def save_transcription(transcription_text, meta_data):
+    print(transcription_text, meta_data)
+    check_meeting_exists(meta_data)
+    if(len(transcription_text) and meta_data):
+        MeetingTranscription.objects.create(
+            speaker=meta_data.get('speaker', 'Unknown'),
+            roomid=meta_data.get('room_id', 'Unknown'),
+            text=transcription_text,
+            username=meta_data.get('username', 'Unknown'),
+            order_no=meta_data.get('no', 0)
+        )
+    return
+    
+
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
     transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id")
@@ -432,6 +459,7 @@ def process_audio(file_path):
         deepgram_result = res
         transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
 
+        save_transcription(transcription_text, meta_data)
         return transcription_text
 
     except Exception as e:
