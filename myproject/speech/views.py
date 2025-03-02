@@ -406,14 +406,31 @@ from django.db import transaction
 def check_meeting_exists(meta_data):
     try:
         with transaction.atomic():
-            create = Meeting.objects.create(
-                title= meta_data.get('title', 'Unknown'),
-                username= meta_data.get('username', 'Unknown'),
-                roomid = meta_data.get('room_id', 'Unknown'),
+            room_id = meta_data.get('room_id')
+            username = meta_data.get('username')
+
+            # Ensure room_id and username are provided
+            if not room_id or not username:
+                print("Missing room_id or username.")
+                return False
+
+            # Check if a meeting already exists with the same room_id and username
+            if Meeting.objects.filter(roomid=room_id, username=username).exists():
+                print(f"Meeting with room_id {room_id} and username {username} already exists.")
+                return False  # Return False if the meeting already exists
+
+            # Create the meeting if it does not exist
+            meeting = Meeting.objects.create(
+                title=meta_data.get('title', 'Unknown'),
+                username=username,
+                roomid=room_id,
             )
-            print("meeting created", create)
+            print("Meeting created:", meeting)
+            return True  # Return True to indicate a new meeting was created
+
     except Exception as e:
         print("Error creating meeting:", e)
+        return False  # Return False if an error occurs
 
 
 
@@ -831,11 +848,38 @@ def ask_questionv2(room_id):
 @csrf_exempt
 @require_POST
 def meeting_end_alert(request):
-    room_id = json.loads(request.body).get("room_id")
-    print("Meeting ended", room_id)
-    # transcription = get_meeting_transcriptionsv2(room_id)
-    transcription = ask_questionv2(room_id)
-    return JsonResponse({"message": "Meeting ended", "transcription": transcription})
+    try:
+        # Ensure the request method is POST
+        if request.method != "POST":
+            return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+
+        # Parse JSON data from the request body
+        if not request.body:
+            return JsonResponse({"error": "Request body is empty."}, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+        
+        # Extract room_id
+        room_id = data.get("room_id")
+        if not room_id:
+            return JsonResponse({"error": "room_id is required."}, status=400)
+
+        # Check if an entry already exists in MeetingTranscription
+        if Meeting.objects.filter(roomid=room_id).exists():
+            return JsonResponse({"message": "Meeting transcription already exists, no action taken."}, status=409)
+
+        print("Meeting ended", room_id)
+
+        # Proceed with transcription only if no record exists
+        transcription = ask_questionv2(room_id)
+
+        return JsonResponse({"message": "Meeting ended", "transcription": transcription}, status=201)
+    
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @csrf_exempt
