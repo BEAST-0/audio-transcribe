@@ -8,6 +8,7 @@ class Meeting(models.Model):
     title = models.CharField(max_length=255)
     airesponse = models.JSONField()
     roomid = models.CharField(max_length=255)
+    trello_created = models.BooleanField(default=False)
 
     def __str__(self):
 

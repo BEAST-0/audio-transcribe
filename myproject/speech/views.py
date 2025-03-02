@@ -569,7 +569,15 @@ def assign_trello_tasks_from_meeting(request):
     
         if not summaries:
             return JsonResponse({"error": "No meeting summary found for the given room ID and username."}, status=404)
+
+       #Second error check: If `trello_created=True`, return a validation error
+        if Meeting.objects.filter(roomid=room_id, username=username, trello_created=True).exists():
+            return JsonResponse({"error": "Trello task has already been assigned."}, status=400)
         
+        # If no errors, update `trello_created=True`
+        Meeting.objects.filter(roomid=room_id, username=username).update(trello_created=True)
+
+
         # Parse the first summary (assuming only one summary is needed)
         meeting_summary = json.loads(summaries[0])
         
