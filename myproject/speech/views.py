@@ -408,7 +408,7 @@ def check_meeting_exists(meta_data):
         with transaction.atomic():
             create = Meeting.objects.create(
                 title= meta_data.get('title', 'Unknown'),
-                username= meta_data.get('room_id', 'Unknown'),
+                username= meta_data.get('username', 'Unknown'),
                 roomid = meta_data.get('room_id', 'Unknown'),
             )
             print("meeting created", create)
