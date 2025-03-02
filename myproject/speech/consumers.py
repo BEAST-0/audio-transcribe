@@ -38,7 +38,7 @@ class SpeechConsumer(AsyncWebsocketConsumer):
             # Process the saved audio file
             try:
                 from speech.views import process_audio
-                ares = await sync_to_async(process_audio)(file_path)  # Process audio
+                ares = await sync_to_async(process_audio)(file_path,self.metadata)  # Process audio
                 
                 # Include metadata in the response
                 response_data = {

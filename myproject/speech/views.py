@@ -22,7 +22,7 @@ from rest_framework.decorators import api_view
 from rest_framework.permissions import AllowAny
 
 # Local imports
-from speech.models import CustomUser, Meeting, MeetingTranscription
+from speech.models import CustomUser, Meeting, MeetingTranscription,MeetingUser
 from .serializers import MeetingTranscriptionSerializer, UserSerializer, MeetingSerializer
 from livekit.api import AccessToken, VideoGrants
 
@@ -354,19 +354,19 @@ def ask_question(request):
             for task in trello_tasks:
                 task_name = task.get("task", "No task name")
                 task_description = (
-                    f"Task Details:\n"
-                    f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
-                    f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
-                    f"\n"
-                    f"Task Context:\n"
-                    f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
-                    f"\n"
-                    f"Related Meeting Notes:\n"
-                    f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
-                    f"\n"
-                    f"Additional Information:\n"
-                    f"- Created on: {current_date}\n"
-                    f"- Extracted automatically from meeting transcript"
+                    # f"Task Details:\n"
+                    # f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+                    # f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+                    # f"\n"
+                    # f"Task Context:\n"
+                    # f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
+                    # f"\n"
+                    # f"Related Meeting Notes:\n"
+                    # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
+                    # f"\n"
+                    # f"Additional Information:\n"
+                    # f"- Created on: {current_date}\n"
+                    # f"- Extracted automatically from meeting transcript"
                 )
                 
                 trello_response = create_trello_task(task_name, task_description)
@@ -401,13 +401,43 @@ def checking(request):
 def socket_checking(message):
     return {"message": "Socket response" + message}
 
+
+from django.db import transaction
+def check_meeting_exists(meta_data):
+    try:
+        with transaction.atomic():
+            create = Meeting.objects.create(
+                title= meta_data.get('title', 'Unknown'),
+                username= meta_data.get('room_id', 'Unknown'),
+                roomid = meta_data.get('room_id', 'Unknown'),
+            )
+            print("meeting created", create)
+    except Exception as e:
+        print("Error creating meeting:", e)
+
+
+
+def save_transcription(transcription_text, meta_data):
+    print(transcription_text, meta_data)
+    check_meeting_exists(meta_data)
+    if(len(transcription_text) and meta_data):
+        MeetingTranscription.objects.create(
+            speaker=meta_data.get('speaker', 'Unknown'),
+            roomid=meta_data.get('room_id', 'Unknown'),
+            text=transcription_text,
+            username=meta_data.get('username', 'Unknown'),
+            order_no=meta_data.get('no', 0)
+        )
+    return
+    
+
 @api_view(['GET'])
 def get_meeting_transcriptions(request, room_id):
     transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id")
     serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
     return Response(serializer.data)
 
-def process_audio(file_path):
+def process_audio(file_path, meta_data):
     """Process an audio file using Deepgram API."""
     
     dg = Deepgram(DEEPGRAM_API_KEY)
@@ -432,6 +462,7 @@ def process_audio(file_path):
         deepgram_result = res
         transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
 
+        save_transcription(transcription_text, meta_data)
         return transcription_text
 
     except Exception as e:
@@ -553,19 +584,19 @@ def assign_trello_tasks_from_meeting(request):
         for task in trello_tasks:
             task_name = task.get("task", "No task name")
             task_description = (
-                f"Task Details:\n"
-                f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
-                f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
-                f"\n"
-                f"Task Context:\n"
-                f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
-                f"\n"
-                f"Related Meeting Notes:\n"
-                f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
-                f"\n"
-                f"Additional Information:\n"
-                f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
-                f"- Extracted automatically from meeting transcript"
+                # f"Task Details:\n"
+                # f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+                # f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+                # f"\n"
+                # f"Task Context:\n"
+                # f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
+                # f"\n"
+                # f"Related Meeting Notes:\n"
+                # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
+                # f"\n"
+                # f"Additional Information:\n"
+                # f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
+                # f"- Extracted automatically from meeting transcript"
             )
             
             # Create the Trello task
@@ -618,6 +649,228 @@ def get_user_details(request):
         
         # Return the user details
         return JsonResponse({"user": user_details}, status=200)
+    
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+def get_meeting_transcriptionsv2(room_id):
+    transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("order_no")
+    print(transcriptions)
+    serializer = MeetingTranscriptionSerializer(transcriptions, many=True)
+    text = ''
+    # iterate and append text in serializer.data
+    for data in serializer.data:
+        text += data['text']
+    return text
+
+
+#saves gpt answer to db. only hit this api once per meeting.
+def ask_questionv2(room_id): 
+    print("room_id", room_id)
+    try:
+        current_date = date.today().strftime('%Y-%m-%d')
+        if not room_id:
+            return JsonResponse({"error": "No meeting id provided."}, status=400)
+
+        transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("text")
+        transcript = " "
+        for transcription in transcriptions:
+            transcript += transcription["text"] + " "
+
+        # transcript = """SPEAKER 0: Hello. My name is Jeevan."
+        # "SPEAKER 1: Hello. Hi. Good evening.",
+        # "SPEAKER 0: Good evening, mister Navin. Welcome to you today's session."
+        # "SPEAKER 1: Thank you. How are you?"
+        # "SPEAKER 0: I'm doing really well. I hope I'm loud and clear to you."
+        # "SPEAKER 1: Yeah. Your voice is very clear."
+	    # "SPEAKER 0: You should submit the document tomorrow at 10:00 AM."
+	    # "SPEAKER 1: Sure."""
+
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+
+        if not openai_api_key:
+            return JsonResponse({"error": "OpenAI API key not configured."}, status=500)
+
+        llm = ChatOpenAI(
+            openai_api_key=openai_api_key,
+            model="gpt-4o-mini",
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+
+        prompt_template = PromptTemplate(
+            input_variables=["meeting_transcription", "current_date"],
+            template="""
+            You are an AI assistant that processes meeting transcriptions where speakers are not explicitly identified.
+            
+            Analyze the following transcript and extract the following details:
+            - **Speaker Identification**: Identify different speakers based on conversational flow, pronouns used, questions asked and answers given.
+            - **Meeting Notes**: Summarize key discussion points concisely.
+            - **Schedules**: Identify any dates, times, or deadlines mentioned.
+            - **Action Items**: List tasks assigned to specific individuals, including deadlines.
+            
+            Speaker identification guidelines:
+            1. Pay attention to shifts in perspective (e.g., "I will" vs "you should")
+            2. Track question-answer pairs to identify different speakers
+            3. Look for names mentioned in third-person vs first-person references
+            4. Consider the context of who would likely assign tasks vs who would accept them
+            5. Watch for confirmation responses that indicate a different speaker
+            
+            Format your response in **valid JSON**:
+            {{
+                "summary": "Brief but comprehensive summary of the meeting capturing all key points, decisions, deadlines, and action items in an easy-to-understand format",
+                "speakers": [
+                    {{
+                        "speaker_id": "SPEAKER_1",
+                        "identified_name": "Name identified from transcript or role description if name unknown"
+                    }}
+                ],
+                "notes": [
+                    {{
+                        "topic": "Description of key discussion point",
+                        "speaker": "Identified name or role of speaker"
+                    }}
+                ],
+                "schedules": [
+                    {{
+                        "date": "YYYY-MM-DD",
+                        "time": "HH:MM AM/PM",
+                        "event": "Description of scheduled event"
+                    }}
+                ],
+                "action_items": [
+                    {{
+                        "task": "Description of action item",
+                        "assigned_to": "Person's identified name or role",
+                        "assigned_by": "Person who assigned the task",
+                        "deadline": "YYYY-MM-DD"
+                    }}
+                ],
+                "trello_tasks": [
+                    {{
+                        "task": "Description of action item",
+                        "assigned_to": "Person's identified name or role",
+                        "assigned_by": "Person who assigned the task",
+                        "deadline": "YYYY-MM-DD",
+                        "trello_list": "To Do",
+                        "status": "Pending_to_trello"
+                    }}
+                ]
+            }}
+            
+            IMPORTANT: For all deadlines and schedules, convert relative time references to actual dates based on today's date ({current_date}):
+            - "tomorrow" = the day after {current_date}
+            - "next week" = 7 days after {current_date}
+            - "next month" = the same day in the following month
+            - "in X days/weeks/months" = calculate the specific date accordingly.
+            
+            SPEAKER IDENTIFICATION STRATEGY:
+            1. First, segment the transcript by identifying natural breaks in conversation
+            2. Look for names mentioned directly (e.g., "Naveen, can you...")
+            3. Analyze question-answer patterns to separate speakers
+            4. Track pronoun usage changes (I/you/we) to detect speaker changes
+            5. For task assignments, the person accepting the task is typically the assignee
+            6. Confirmations like "Ok fine" usually indicate a return to the original speaker
+
+            **Transcript:**
+            {transcript}
+            """
+        )
+
+        chain = LLMChain(llm=llm, prompt=prompt_template)
+        answer = chain.run(transcript=transcript, current_date=current_date)
+
+        try:
+            json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
+            notes = json_answer.get("notes", [])
+            schedules = json_answer.get("schedules", [])
+            action_items = json_answer.get("action_items", [])
+            trello_tasks = json_answer.get("trello_tasks", [])
+
+            trello_responses = []
+            for task in trello_tasks:
+                task_name = task.get("task", "No task name")
+                task_description = (
+                    # f"Task Details:\n"
+                    # f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+                    # f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+                    # f"\n"
+                    # f"Task Context:\n"
+                    # f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
+                    # f"\n"
+                    # f"Related Meeting Notes:\n"
+                    # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
+                    # f"\n"
+                    # f"Additional Information:\n"
+                    # f"- Created on: {current_date}\n"
+                    # f"- Extracted automatically from meeting transcript"
+                )
+                
+                trello_response = create_trello_task(task_name, task_description)
+                trello_responses.append(trello_response)
+            
+            Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer))
+            return json_answer
+
+        except json.JSONDecodeError:
+            return json_answer
+        
+
+        return json_answer
+    except Exception as e:
+        return str(e)
+
+@csrf_exempt
+@require_POST
+def meeting_end_alert(request):
+    room_id = json.loads(request.body).get("room_id")
+    print("Meeting ended", room_id)
+    # transcription = get_meeting_transcriptionsv2(room_id)
+    transcription = ask_questionv2(room_id)
+    return JsonResponse({"message": "Meeting ended", "transcription": transcription})
+
+
+@csrf_exempt
+@require_POST
+def get_meeting_details_by_username(request):
+    try:
+        data = json.loads(request.body)
+        username = data.get("username")
+        if not username:
+            return JsonResponse({"error": "Username is required."}, status=400)
+        room_ids = MeetingUser.objects.filter(username=username).values_list("roomid", flat=True)
+        print(room_ids)  # Debugging: Check if it's a list of values
+
+        meetings = Meeting.objects.filter(roomid__in=room_ids).order_by("id").values()  # Use `__in` to match multiple values
+        meetings_list = list(meetings)
+
+        for meeting in meetings_list:
+            meeting["airesponse"] = json.loads(meeting["airesponse"])
+
+        return JsonResponse({"meetings": meetings_list})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+
+@csrf_exempt
+@require_POST
+def save_meeting_users(request):
+    try:
+        # Parse JSON data from the request body
+        data = json.loads(request.body)
+        
+        # Extract meeting ID and username from the parsed JSON data
+        room_id = data.get("room_id")
+        username = data.get("username")
+        
+        if not room_id or not username:
+            return JsonResponse({"error": "Meeting ID and username are required."}, status=400)
+        
+        # Save the meeting user record
+        MeetingUser.objects.create(roomid=room_id, username=username)
+        
+        return JsonResponse({"message": "Meeting user record saved successfully."})
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
