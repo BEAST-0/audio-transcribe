@@ -27,7 +27,7 @@ class CustomUser(models.Model):
     id = models.AutoField(primary_key=True)
     username = models.CharField(max_length=30, unique=True)
     email = models.EmailField(unique=True)
-    token = models.CharField(max_length=10, unique=True)
+    token = models.CharField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
