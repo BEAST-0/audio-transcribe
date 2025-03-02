@@ -842,43 +842,75 @@ def meeting_end_alert(request):
 @require_POST
 def get_meeting_details_by_username(request):
     try:
-        data = json.loads(request.body)
+        # Ensure the request method is correct
+        if request.method != "POST":
+            return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+
+        # Check if request body is empty
+        if not request.body:
+            return JsonResponse({"error": "Request body is empty."}, status=400)
+
+        # Load JSON safely
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
+
+        # Extract username
         username = data.get("username")
         if not username:
             return JsonResponse({"error": "Username is required."}, status=400)
-        room_ids = MeetingUser.objects.filter(username=username).values_list("roomid", flat=True)
-        print(room_ids)  # Debugging: Check if it's a list of values
 
-        meetings = Meeting.objects.filter(roomid__in=room_ids).order_by("id").values()  # Use `__in` to match multiple values
+        # Query meetings
+        room_ids = MeetingUser.objects.filter(username=username).values_list("roomid", flat=True)
+        meetings = Meeting.objects.filter(roomid__in=room_ids).order_by("id").values()
         meetings_list = list(meetings)
 
+        # Safely parse `airesponse`
         for meeting in meetings_list:
-            meeting["airesponse"] = json.loads(meeting["airesponse"])
+            try:
+                meeting["airesponse"] = json.loads(meeting["airesponse"])
+            except (json.JSONDecodeError, TypeError):
+                meeting["airesponse"] = None  # Handle case where airesponse is not valid JSON
 
         return JsonResponse({"meetings": meetings_list})
+    
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
-
 
 
 @csrf_exempt
 @require_POST
 def save_meeting_users(request):
     try:
+        # Ensure the request method is POST
+        if request.method != "POST":
+            return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+
         # Parse JSON data from the request body
-        data = json.loads(request.body)
+        if not request.body:
+            return JsonResponse({"error": "Request body is empty."}, status=400)
+
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON format."}, status=400)
         
-        # Extract meeting ID and username from the parsed JSON data
+        # Extract meeting ID and username
         room_id = data.get("room_id")
         username = data.get("username")
-        
+
         if not room_id or not username:
             return JsonResponse({"error": "Meeting ID and username are required."}, status=400)
-        
-        # Save the meeting user record
+
+        # Check if the entry already exists
+        if MeetingUser.objects.filter(roomid=room_id, username=username).exists():
+            return JsonResponse({"message": "This meeting user already exists."}, status=409)
+
+        # Save the new meeting user record
         MeetingUser.objects.create(roomid=room_id, username=username)
         
-        return JsonResponse({"message": "Meeting user record saved successfully."})
+        return JsonResponse({"message": "Meeting user record saved successfully."}, status=201)
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
