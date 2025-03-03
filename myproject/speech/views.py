@@ -805,7 +805,7 @@ def ask_questionv2(room_id):
                 "next_meeting": [
                     {{
                         "date": "YYYY-MM-DD",
-                        "time": "HH:MM AM/PM",
+                        "time": "HH:MM AM/PM if no time specified return empty string",
                         "topics": "Topic ".
                         "participants": "Comma-separated list of participants for next meeting",
                         "agenda": "Agenda for the meeting"
@@ -826,7 +826,7 @@ def ask_questionv2(room_id):
             4. Track pronoun usage changes (I/you/we) to detect speaker changes
             5. For task assignments, the person accepting the task is typically the assignee
             6. Confirmations like "Ok fine" usually indicate a return to the original speaker
-
+            7. For next meeting, look for phrases like "Next meeting", "In the next session", "In the upcoming meeting", etc.
             **Transcript:**
             {transcript}
             """
@@ -834,7 +834,6 @@ def ask_questionv2(room_id):
 
         chain = LLMChain(llm=llm, prompt=prompt_template)
         answer = chain.run(transcript=transcript, current_date=current_date)
-
         try:
             json_answer = json.loads(answer)  # Ensure JSON is valid
             if "next_meeting" in json_answer and len(json_answer["next_meeting"]) > 0:
@@ -844,13 +843,21 @@ def ask_questionv2(room_id):
                     topics = meeting["topics"]
 
                     # Convert string to date and time objects
-                    meeting_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                    meeting_time = datetime.strptime(time_str, "%I:%M %p").time()
+                    # if date_str length is 0, set date to None
+                    if len(date_str) < 5:
+                        meeting_date = ''
+                    else:
+                        meeting_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                        
+                    if len(time_str) < 5:
+                        meeting_time = ''
+                    else:
+                        meeting_time = datetime.strptime(time_str, "%I:%M %p").time()
 
                     # Create and save the meeting record
                     FutureMeeting.objects.create(
-                        date=meeting_date,
-                        time=meeting_time,
+                        date=meeting_date or '',
+                        time=meeting_time or '',
                         title=topics,
                         participants=meeting["participants"],
                         agenda=meeting["agenda"],
@@ -886,7 +893,7 @@ def ask_questionv2(room_id):
 
             from django.utils import timezone
 
-            print(timezone.now())
+
             
             meeting = Meeting.objects.filter(roomid=room_id)[:1].get()
             meeting.airesponse = json.dumps(json_answer)

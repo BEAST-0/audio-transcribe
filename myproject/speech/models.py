@@ -55,8 +55,8 @@ class MeetingUser(models.Model):
 
 class FutureMeeting(models.Model):
     title = models.CharField(max_length=255)
-    date = models.DateField()
-    time = models.TimeField()
+    date = models.TextField(null=True, blank=True)
+    time = models.TextField(null=True, blank=True)
     duration_minutes = models.IntegerField()
     participants = models.TextField(help_text="Comma-separated emails or names")
     agenda = models.TextField(blank=True, null=True)
