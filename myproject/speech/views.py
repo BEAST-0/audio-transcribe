@@ -698,6 +698,7 @@ def ask_questionv2(room_id):
             return JsonResponse({"error": "No meeting id provided."}, status=400)
 
         transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("text")
+        print(transcriptions[0])
         transcript = " "
         for transcription in transcriptions:
             transcript += transcription["text"] + " "
