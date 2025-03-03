@@ -425,6 +425,7 @@ def check_meeting_exists(meta_data):
                 title=meta_data.get('title', 'Unknown'),
                 username=username,
                 roomid=room_id,
+                airesponse =""
             )
             print("Meeting created:", meeting)
             return True  # Return True to indicate a new meeting was created

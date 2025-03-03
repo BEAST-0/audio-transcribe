@@ -7,7 +7,7 @@ class Meeting(models.Model):
     createdat = models.DateTimeField(auto_now_add=True)
     updatedat = models.DateTimeField(auto_now=True)
     title = models.CharField(max_length=255)
-    airesponse = models.JSONField()
+    airesponse = models.JSONField(null=True)
     roomid = models.CharField(max_length=255)
     trello_created = models.BooleanField(default=False)
     duration = models.IntegerField(null=True)
