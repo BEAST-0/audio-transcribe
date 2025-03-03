@@ -609,19 +609,19 @@ def assign_trello_tasks_from_meeting(request):
         for task in trello_tasks:
             task_name = task.get("task", "No task name")
             task_description = (
-                # f"Task Details:\n"
-                # f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
-                # f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
-                # f"\n"
-                # f"Task Context:\n"
-                # f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
-                # f"\n"
-                # f"Related Meeting Notes:\n"
-                # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
-                # f"\n"
-                # f"Additional Information:\n"
-                # f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
-                # f"- Extracted automatically from meeting transcript"
+                f"Task Details:\n"
+                f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+                f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+                f"\n"
+                f"Task Context:\n"
+                f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
+                f"\n"
+                f"Related Meeting Notes:\n"
+                f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
+                f"\n"
+                f"Additional Information:\n"
+                f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
+                f"- Extracted automatically from meeting transcript"
             )
             
             # Create the Trello task
@@ -807,32 +807,32 @@ def ask_questionv2(room_id):
 
         try:
             json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
-            notes = json_answer.get("notes", [])
-            schedules = json_answer.get("schedules", [])
-            action_items = json_answer.get("action_items", [])
-            trello_tasks = json_answer.get("trello_tasks", [])
+            # notes = json_answer.get("notes", [])
+            # schedules = json_answer.get("schedules", [])
+            # action_items = json_answer.get("action_items", [])
+            # trello_tasks = json_answer.get("trello_tasks", [])
 
-            trello_responses = []
-            for task in trello_tasks:
-                task_name = task.get("task", "No task name")
-                task_description = (
-                    # f"Task Details:\n"
-                    # f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
-                    # f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
-                    # f"\n"
-                    # f"Task Context:\n"
-                    # f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
-                    # f"\n"
-                    # f"Related Meeting Notes:\n"
-                    # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
-                    # f"\n"
-                    # f"Additional Information:\n"
-                    # f"- Created on: {current_date}\n"
-                    # f"- Extracted automatically from meeting transcript"
-                )
+            # trello_responses = []
+            # for task in trello_tasks:
+            #     task_name = task.get("task", "No task name")
+            #     task_description = (
+            #         f"Task Details:\n"
+            #         f"- Assigned to: {task.get('assigned_to', 'Unassigned')}\n"
+            #         f"- Deadline: {task.get('deadline', 'No deadline specified')}\n"
+            #         f"\n"
+            #         f"Task Context:\n"
+            #         f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in json_answer.get('speakers', [])])}\n"
+            #         f"\n"
+            #         f"Related Meeting Notes:\n"
+            #         f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in notes])}\n"
+            #         f"\n"
+            #         f"Additional Information:\n"
+            #         f"- Created on: {current_date}\n"
+            #         f"- Extracted automatically from meeting transcript"
+            #     )
                 
-                trello_response = create_trello_task(task_name, task_description)
-                trello_responses.append(trello_response)
+            #     trello_response = create_trello_task(task_name, task_description)
+            #     trello_responses.append(trello_response)
             
             Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer))
             return json_answer
