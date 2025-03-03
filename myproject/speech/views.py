@@ -936,6 +936,7 @@ def get_meeting_details_by_username(request):
         for meeting in meetings_list:
             try:
                 meeting["airesponse"] = json.loads(meeting["airesponse"])
+                meeting["participants"] = list(MeetingUser.objects.filter(roomid=meeting["roomid"]).values_list("username", flat=True))
             except (json.JSONDecodeError, TypeError):
                 meeting["airesponse"] = None  # Handle case where airesponse is not valid JSON
 
