@@ -702,6 +702,7 @@ def ask_questionv2(room_id):
         transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("text","createdat")
 
         transcript = " "
+        duration = 0
         if transcriptions.exists():
             first_entry = transcriptions.first()
             last_entry = transcriptions.last()
