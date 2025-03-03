@@ -7,7 +7,7 @@ import requests
 # Django imports
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
 # Third-party package imports
 from dotenv import load_dotenv
@@ -1022,3 +1022,8 @@ def save_meeting_users(request):
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+def get_future_meetings(request):
+    future_meetings = FutureMeeting.objects.order_by("date").values()
+    return JsonResponse(list(future_meetings), safe=False)
