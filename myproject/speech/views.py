@@ -416,7 +416,7 @@ def check_meeting_exists(meta_data):
                 return False
 
             # Check if a meeting already exists with the same room_id and username
-            if Meeting.objects.filter(roomid=room_id, username=username).exists():
+            if Meeting.objects.filter(roomid=room_id).exists():
                 print(f"Meeting with room_id {room_id} and username {username} already exists.")
                 return False  # Return False if the meeting already exists
 
