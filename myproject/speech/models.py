@@ -50,3 +50,18 @@ class MeetingUser(models.Model):
 
     def __str__(self):
         return self.username
+
+
+
+class FutureMeeting(models.Model):
+    title = models.CharField(max_length=255)
+    date = models.DateField()
+    time = models.TimeField()
+    duration_minutes = models.IntegerField()
+    participants = models.TextField(help_text="Comma-separated emails or names")
+    agenda = models.TextField(blank=True, null=True)
+    trello_task_url = models.URLField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} on {self.date} at {self.time}"
