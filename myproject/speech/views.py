@@ -1,5 +1,5 @@
 # Standard library imports
-from datetime import date
+from datetime import date, datetime
 import os
 import json
 import requests
@@ -23,7 +23,7 @@ from rest_framework.permissions import AllowAny
 from datetime import timedelta
 
 # Local imports
-from speech.models import CustomUser, Meeting, MeetingTranscription,MeetingUser
+from speech.models import CustomUser, Meeting, MeetingTranscription,MeetingUser,FutureMeeting
 from .serializers import MeetingTranscriptionSerializer, UserSerializer, MeetingSerializer
 from livekit.api import AccessToken, VideoGrants
 
@@ -752,6 +752,7 @@ def ask_questionv2(room_id):
             - **Meeting Notes**: Summarize key discussion points concisely.
             - **Schedules**: Identify any dates, times, or deadlines mentioned.
             - **Action Items**: List tasks assigned to specific individuals, including deadlines.
+            - **Next Meeting**: Identify references to future meetings, including the date, time, and topics to be discussed.
             
             Speaker identification guidelines:
             1. Pay attention to shifts in perspective (e.g., "I will" vs "you should")
@@ -763,6 +764,7 @@ def ask_questionv2(room_id):
             Format your response in **valid JSON**:
             {{
                 "summary": "Brief but comprehensive summary of the meeting capturing all key points, decisions, deadlines, and action items in an easy-to-understand format",
+                "summary_one_line": "One-line summary of the meeting",
                 "speakers": [
                     {{
                         "speaker_id": "SPEAKER_1",
@@ -799,6 +801,15 @@ def ask_questionv2(room_id):
                         "trello_list": "To Do",
                         "status": "Pending_to_trello"
                     }}
+                ],
+                "next_meeting": [
+                    {{
+                        "date": "YYYY-MM-DD",
+                        "time": "HH:MM AM/PM",
+                        "topics": "Topic ".
+                        "participants": "Comma-separated list of participants for next meeting",
+                        "agenda": "Agenda for the meeting"
+                    }}
                 ]
             }}
             
@@ -825,8 +836,27 @@ def ask_questionv2(room_id):
         answer = chain.run(transcript=transcript, current_date=current_date)
 
         try:
-            json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
-            print(json_answer)
+            json_answer = json.loads(answer)  # Ensure JSON is valid
+            if "next_meeting" in json_answer and len(json_answer["next_meeting"]) > 0:
+                for meeting in json_answer["next_meeting"]:
+                    date_str = meeting["date"]
+                    time_str = meeting["time"]
+                    topics = meeting["topics"]
+
+                    # Convert string to date and time objects
+                    meeting_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    meeting_time = datetime.strptime(time_str, "%I:%M %p").time()
+
+                    # Create and save the meeting record
+                    FutureMeeting.objects.create(
+                        date=meeting_date,
+                        time=meeting_time,
+                        title=topics,
+                        participants=meeting["participants"],
+                        agenda=meeting["agenda"],
+                        trello_task_url="",
+                        duration_minutes=0
+                    )
             # notes = json_answer.get("notes", [])
             # schedules = json_answer.get("schedules", [])
             # action_items = json_answer.get("action_items", [])
