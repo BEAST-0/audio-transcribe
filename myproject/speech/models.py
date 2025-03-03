@@ -25,7 +25,7 @@ class MeetingTranscription(models.Model):
     username = models.CharField(max_length=255)
     order_no = models.IntegerField()
     createdat = models.DateTimeField(auto_now=True)
-    updatedat = now()
+    updatedat = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return str(self.id)
@@ -46,7 +46,7 @@ class MeetingUser(models.Model):
     username = models.CharField(max_length=255)
     roomid = models.CharField(max_length=255)
     createdat = models.DateTimeField(auto_now_add=True)
-    updatedat = now()
+    updatedat = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.username
