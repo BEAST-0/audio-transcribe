@@ -619,7 +619,7 @@ def assign_trello_tasks_from_meeting(request):
                 f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
                 f"\n"
                 f"Related Meeting Notes:\n"
-                f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
+                # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
                 f"\n"
                 f"Additional Information:\n"
                 f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
@@ -851,8 +851,16 @@ def ask_questionv2(room_id):
                 
             #     trello_response = create_trello_task(task_name, task_description)
             #     trello_responses.append(trello_response)
+
+            from django.utils import timezone
+
+            print(timezone.now())
             
-            Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer),duration=duration)
+            meeting = Meeting.objects.get(roomid=room_id)
+            meeting.airesponse = json.dumps(json_answer)
+            meeting.duration = duration
+            meeting.updatedat = timezone.now()
+            meeting.save()
             return json_answer
 
         except json.JSONDecodeError:
