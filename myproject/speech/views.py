@@ -177,12 +177,12 @@ def upload_audio(request):
             with open(f"./uploads/transcripts/{audio_file.name[:-4]}.json", "w") as transcript:
                   json.dump(res, transcript, indent=4)
 
-        deepgram_result = res
-        transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
+        # deepgram_result = res
+        # transcription_text = deepgram_result.get("results", {}).get("channels", [{}])[0].get("alternatives", [{}])[0].get("transcript", "No transcription available")
 
         #Create Trello Task with transcription details
-        task_name = f"Transcription: {audio_file.name}"
-        trello_response = create_trello_task(task_name, transcription_text)
+        # task_name = f"Transcription: {audio_file.name}"
+        # trello_response = create_trello_task(task_name, transcription_text)
         
         processed_transcript = process_transcriptions(room_id,username, audiofilename)
 
