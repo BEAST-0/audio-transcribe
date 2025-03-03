@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import assign_trello_tasks_from_meeting, get_all_meetings, get_summary, get_user_details, upload_audio, create_trello_task, ask_question, checking, LiveKitTokenView  
-from .views import UserCreateView, get_meeting_transcriptions, upload_audio, meeting_end_alert, get_meeting_details_by_username,save_meeting_users
+from .views import UserCreateView, get_meeting_transcriptions, upload_audio, meeting_end_alert, get_meeting_details_by_username,save_meeting_users,get_future_meetings
 
 urlpatterns = [
     path("upload_audio/", upload_audio),
@@ -17,6 +17,7 @@ urlpatterns = [
     path('meeting-end-alert/', meeting_end_alert, name='meeting_end_alert'),
     path('get-meeting-details/', get_meeting_details_by_username, name='get_meeting_details'),
     path('save_meeting_users/', save_meeting_users, name='save_meeting_users'),
+    path('get-future-meetings/', get_future_meetings, name='get_future_meetings'),
 ]
 
 

@@ -1,5 +1,5 @@
 # Standard library imports
-from datetime import date
+from datetime import date, datetime
 import os
 import json
 import requests
@@ -7,7 +7,7 @@ import requests
 # Django imports
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
 # Third-party package imports
 from dotenv import load_dotenv
@@ -23,7 +23,7 @@ from rest_framework.permissions import AllowAny
 from datetime import timedelta
 
 # Local imports
-from speech.models import CustomUser, Meeting, MeetingTranscription,MeetingUser
+from speech.models import CustomUser, Meeting, MeetingTranscription,MeetingUser,FutureMeeting
 from .serializers import MeetingTranscriptionSerializer, UserSerializer, MeetingSerializer
 from livekit.api import AccessToken, VideoGrants
 
@@ -416,7 +416,7 @@ def check_meeting_exists(meta_data):
                 return False
 
             # Check if a meeting already exists with the same room_id and username
-            if Meeting.objects.filter(roomid=room_id, username=username).exists():
+            if Meeting.objects.filter(roomid=room_id).exists():
                 print(f"Meeting with room_id {room_id} and username {username} already exists.")
                 return False  # Return False if the meeting already exists
 
@@ -425,6 +425,7 @@ def check_meeting_exists(meta_data):
                 title=meta_data.get('title', 'Unknown'),
                 username=username,
                 roomid=room_id,
+                airesponse =""
             )
             print("Meeting created:", meeting)
             return True  # Return True to indicate a new meeting was created
@@ -618,7 +619,7 @@ def assign_trello_tasks_from_meeting(request):
                 f"This task was identified from a meeting conversation between {', '.join([speaker.get('identified_name', speaker.get('original_id', 'Unknown')) for speaker in meeting_summary.get('speakers', [])])}\n"
                 f"\n"
                 f"Related Meeting Notes:\n"
-                f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
+                # f"- {' '.join([f'{note.get('topic', 'Unknown topic')} (mentioned by {note.get('speaker', 'Unknown speaker')})' for note in meeting_summary.get('notes', [])])}\n"
                 f"\n"
                 f"Additional Information:\n"
                 f"- Created on: {date.today().strftime('%Y-%m-%d')}\n"
@@ -701,6 +702,7 @@ def ask_questionv2(room_id):
         transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("text","createdat")
 
         transcript = " "
+        duration = 0
         if transcriptions.exists():
             first_entry = transcriptions.first()
             last_entry = transcriptions.last()
@@ -750,6 +752,7 @@ def ask_questionv2(room_id):
             - **Meeting Notes**: Summarize key discussion points concisely.
             - **Schedules**: Identify any dates, times, or deadlines mentioned.
             - **Action Items**: List tasks assigned to specific individuals, including deadlines.
+            - **Next Meeting**: Identify references to future meetings, including the date, time, and topics to be discussed.
             
             Speaker identification guidelines:
             1. Pay attention to shifts in perspective (e.g., "I will" vs "you should")
@@ -761,6 +764,7 @@ def ask_questionv2(room_id):
             Format your response in **valid JSON**:
             {{
                 "summary": "Brief but comprehensive summary of the meeting capturing all key points, decisions, deadlines, and action items in an easy-to-understand format",
+                "summary_one_line": "One-line summary of the meeting",
                 "speakers": [
                     {{
                         "speaker_id": "SPEAKER_1",
@@ -797,6 +801,15 @@ def ask_questionv2(room_id):
                         "trello_list": "To Do",
                         "status": "Pending_to_trello"
                     }}
+                ],
+                "next_meeting": [
+                    {{
+                        "date": "YYYY-MM-DD",
+                        "time": "HH:MM AM/PM",
+                        "topics": "Topic ".
+                        "participants": "Comma-separated list of participants for next meeting",
+                        "agenda": "Agenda for the meeting"
+                    }}
                 ]
             }}
             
@@ -823,7 +836,27 @@ def ask_questionv2(room_id):
         answer = chain.run(transcript=transcript, current_date=current_date)
 
         try:
-            json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
+            json_answer = json.loads(answer)  # Ensure JSON is valid
+            if "next_meeting" in json_answer and len(json_answer["next_meeting"]) > 0:
+                for meeting in json_answer["next_meeting"]:
+                    date_str = meeting["date"]
+                    time_str = meeting["time"]
+                    topics = meeting["topics"]
+
+                    # Convert string to date and time objects
+                    meeting_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    meeting_time = datetime.strptime(time_str, "%I:%M %p").time()
+
+                    # Create and save the meeting record
+                    FutureMeeting.objects.create(
+                        date=meeting_date,
+                        time=meeting_time,
+                        title=topics,
+                        participants=meeting["participants"],
+                        agenda=meeting["agenda"],
+                        trello_task_url="",
+                        duration_minutes=0
+                    )
             # notes = json_answer.get("notes", [])
             # schedules = json_answer.get("schedules", [])
             # action_items = json_answer.get("action_items", [])
@@ -850,8 +883,16 @@ def ask_questionv2(room_id):
                 
             #     trello_response = create_trello_task(task_name, task_description)
             #     trello_responses.append(trello_response)
+
+            from django.utils import timezone
+
+            print(timezone.now())
             
-            Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer),duration=duration)
+            meeting = Meeting.objects.filter(roomid=room_id)[:1].get()
+            meeting.airesponse = json.dumps(json_answer)
+            meeting.duration = duration
+            meeting.updatedat = timezone.now()
+            meeting.save()
             return json_answer
 
         except json.JSONDecodeError:
@@ -981,3 +1022,8 @@ def save_meeting_users(request):
     
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+def get_future_meetings(request):
+    future_meetings = FutureMeeting.objects.order_by("date").values()
+    return JsonResponse(list(future_meetings), safe=False)
