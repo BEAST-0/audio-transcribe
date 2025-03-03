@@ -867,9 +867,14 @@ def meeting_end_alert(request):
         if not room_id:
             return JsonResponse({"error": "room_id is required."}, status=400)
 
-        # Check if an entry already exists in MeetingTranscription
-        if Meeting.objects.filter(roomid=room_id).exists():
+        meeting = Meeting.objects.filter(roomid=room_id).first()
+        print("Meeting", meeting)
+        if not meeting:
+            return JsonResponse({"error": "Meeting not found."}, status=404)
+
+        if meeting.airesponse:
             return JsonResponse({"message": "Meeting transcription already exists, no action taken."}, status=409)
+
 
         print("Meeting ended", room_id)
 
