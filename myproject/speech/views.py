@@ -825,6 +825,7 @@ def ask_questionv2(room_id):
 
         try:
             json_answer = json.loads(answer)  # This might fail if GPT output is not proper JSON
+            print(json_answer)
             # notes = json_answer.get("notes", [])
             # schedules = json_answer.get("schedules", [])
             # action_items = json_answer.get("action_items", [])
@@ -856,7 +857,7 @@ def ask_questionv2(room_id):
 
             print(timezone.now())
             
-            meeting = Meeting.objects.get(roomid=room_id)
+            meeting = Meeting.objects.filter(roomid=room_id)[:1].get()
             meeting.airesponse = json.dumps(json_answer)
             meeting.duration = duration
             meeting.updatedat = timezone.now()
