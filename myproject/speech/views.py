@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.permissions import AllowAny
+from datetime import timedelta
 
 # Local imports
 from speech.models import CustomUser, Meeting, MeetingTranscription,MeetingUser
@@ -697,11 +698,26 @@ def ask_questionv2(room_id):
         if not room_id:
             return JsonResponse({"error": "No meeting id provided."}, status=400)
 
-        transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("text")
-        print(transcriptions[0])
+        transcriptions = MeetingTranscription.objects.filter(roomid=room_id).order_by("id").values("text","createdat")
+
         transcript = " "
-        for transcription in transcriptions:
-            transcript += transcription["text"] + " "
+        if transcriptions.exists():
+            first_entry = transcriptions.first()
+            last_entry = transcriptions.last()
+
+            start_time = first_entry["createdat"]
+            end_time = last_entry["createdat"]
+
+            duration = (end_time - start_time).total_seconds()
+
+            for transcription in transcriptions:
+                transcript += transcription["text"] + " "
+
+            print(f"Transcript: {transcript.strip()}")
+            print(f"Duration: {duration}")  # Example output: 0:03:45.500000 (3 min 45 sec)
+
+        else:
+            print("No transcriptions found for this room.")
 
         # transcript = """SPEAKER 0: Hello. My name is Jeevan."
         # "SPEAKER 1: Hello. Hi. Good evening.",
@@ -835,7 +851,7 @@ def ask_questionv2(room_id):
             #     trello_response = create_trello_task(task_name, task_description)
             #     trello_responses.append(trello_response)
             
-            Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer))
+            Meeting.objects.filter(roomid=room_id).update(airesponse=json.dumps(json_answer),duration=duration)
             return json_answer
 
         except json.JSONDecodeError:
